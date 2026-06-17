@@ -1,0 +1,28 @@
+{
+  "name": "tsuniforge",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=@tsuniforge/api",
+    "dev:web": "turbo run dev --filter=@tsuniforge/frontend",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "db:migrate": "cd apps/api && npm run migration:run",
+    "db:generate": "cd apps/api && npm run migration:generate"
+  },
+  "devDependencies": {
+    "prettier": "^3.7.4",
+    "turbo": "^2.9.16",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "npm@11.4.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

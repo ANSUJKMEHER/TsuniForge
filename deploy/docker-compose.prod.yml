@@ -1,0 +1,133 @@
+# ============================================
+# TsuniForge — Production (Oracle Cloud VM)
+# ============================================
+# Usage:
+#   1. Copy .env.production.example to .env
+#   2. Fill in your secrets
+#   3. docker compose -f docker-compose.prod.yml up -d --build
+# ============================================
+
+services:
+  # ─── PostgreSQL ──────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: tf-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # ─── Redis ───────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tf-redis
+    restart: always
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # ─── NestJS API ──────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    container_name: tf-api
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      FRONTEND_URL: ${FRONTEND_URL}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+
+  # ─── Go Judge Engine ─────────────────────────
+  judge:
+    build:
+      context: ../apps/judge
+      dockerfile: Dockerfile
+    container_name: tf-judge
+    restart: always
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DOCKER_SOCKET: /var/run/docker.sock
+      MAX_CONCURRENT_JUDGES: 4
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    privileged: true
+
+  # ─── Nginx Reverse Proxy ─────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: tf-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - certbot_data:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - api
+    networks:
+      - internal
+
+  # ─── Certbot (SSL) ───────────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: tf-certbot
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  certbot_data:
+  certbot_www:
+
+networks:
+  internal:
+    driver: bridge

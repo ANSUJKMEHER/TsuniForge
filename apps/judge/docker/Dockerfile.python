@@ -1,0 +1,17 @@
+# TsuniForge Python Sandbox
+# Minimal image with Python 3.11 for running Python solutions
+FROM python:3.11-slim-bookworm AS base
+
+# Create non-root user for execution
+RUN useradd -m -s /bin/bash sandbox && \
+    mkdir -p /tmp/submission && \
+    chown sandbox:sandbox /tmp/submission
+
+# Remove pip and unnecessary tools (no package installation allowed)
+RUN pip uninstall pip -y 2>/dev/null; \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+USER sandbox
+WORKDIR /tmp/submission
+
+CMD ["bash"]
