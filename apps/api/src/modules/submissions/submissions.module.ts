@@ -7,6 +7,9 @@ import { JudgeQueueService } from './judge-queue.service';
 import { Submission } from '../../database/entities';
 import { ProblemsModule } from '../problems/problems.module';
 import { ContestsModule } from '../contests/contests.module';
+import { MinioService } from '../../common/services/minio.service';
+import { GeminiService } from '../../common/services/gemini.service';
+import { MongodbLoggerService } from '../../common/services/mongodb-logger.service';
 
 @Module({
   imports: [
@@ -15,7 +18,14 @@ import { ContestsModule } from '../contests/contests.module';
     ContestsModule,
   ],
   controllers: [SubmissionsController],
-  providers: [SubmissionsService, SubmissionsGateway, JudgeQueueService],
+  providers: [
+    SubmissionsService,
+    SubmissionsGateway,
+    JudgeQueueService,
+    MinioService,
+    GeminiService,
+    MongodbLoggerService,
+  ],
   exports: [SubmissionsService, SubmissionsGateway],
 })
 export class SubmissionsModule {}

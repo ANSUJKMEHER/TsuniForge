@@ -28,6 +28,7 @@ import { AssessmentsModule } from './modules/assessments/assessments.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { MongodbLoggerService } from './common/services/mongodb-logger.service';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     AssessmentsModule,
   ],
   providers: [
+    MongodbLoggerService,
     // Global exception filter
     {
       provide: APP_FILTER,

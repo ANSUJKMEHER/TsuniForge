@@ -76,6 +76,12 @@ export class Submission {
   @CreateDateColumn({ name: 'submitted_at' })
   submittedAt: Date;
 
+  @Column({ name: 'code_key', nullable: true })
+  codeKey: string | null;
+
+  @Column({ type: 'jsonb', name: 'ai_review', nullable: true })
+  aiReview: Record<string, any> | null;
+
   // ─── Relations ────────────────────────────
 
   @ManyToOne(() => User, (user) => user.submissions)

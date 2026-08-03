@@ -10,6 +10,7 @@ import { ProblemsService } from '../problems/problems.service';
 import { SubmissionsGateway } from './submissions.gateway';
 import { JudgeQueueService } from './judge-queue.service';
 import { CreateSubmissionDto, RunCodeDto, SubmissionQueryDto } from './dto/submission.dto';
+import { MinioService } from '../../common/services/minio.service';
 
 @Injectable()
 export class SubmissionsService {
@@ -19,6 +20,7 @@ export class SubmissionsService {
     private readonly problemsService: ProblemsService,
     private readonly gateway: SubmissionsGateway,
     private readonly judgeQueue: JudgeQueueService,
+    private readonly minioService: MinioService,
   ) {}
 
   // ─── Submit Code ────────────────────────────
@@ -42,6 +44,16 @@ export class SubmissionsService {
     submission.totalTestCases = problem.testCases.length;
 
     const saved = await this.submissionRepo.save(submission);
+
+    // Upload code to MinIO object storage
+    let codeKey: string | null = null;
+    try {
+      codeKey = await this.minioService.uploadCode(saved.id, dto.code, dto.language);
+      await this.submissionRepo.update(saved.id, { codeKey });
+      saved.codeKey = codeKey;
+    } catch (err) {
+      // Fail gracefully or log
+    }
 
     // Notify via WebSocket
     this.gateway.emitSubmissionStatus(saved.id, {
@@ -129,7 +141,20 @@ export class SubmissionsService {
       submission.user = safeUser;
     }
 
-    return submission;
+    // Fetch code content from MinIO
+    let code = '';
+    if (submission.codeKey) {
+      try {
+        code = await this.minioService.getCode(submission.codeKey);
+      } catch (err) {
+        code = '/* Error loading code from S3 storage */';
+      }
+    }
+
+    return {
+      ...submission,
+      code,
+    };
   }
 
   // ─── List Submissions (Paginated) ───────────

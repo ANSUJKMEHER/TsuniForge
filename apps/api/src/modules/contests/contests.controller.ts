@@ -14,6 +14,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ContestsService } from './contests.service';
+import { PlagiarismService } from './plagiarism.service';
 import { CreateContestDto, ContestQueryDto } from './dto/contest.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -23,7 +24,10 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 @ApiTags('Contests')
 @Controller('api/v1/contests')
 export class ContestsController {
-  constructor(private readonly contestsService: ContestsService) {}
+  constructor(
+    private readonly contestsService: ContestsService,
+    private readonly plagiarismService: PlagiarismService,
+  ) {}
 
   @Public()
   @Get()
@@ -76,5 +80,15 @@ export class ContestsController {
   ) {
     const contest = await this.contestsService.create(dto, userId);
     return { success: true, data: contest, message: 'Contest created' };
+  }
+
+  @Get(':id/plagiarism')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'company')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Run plagiarism scan on all AC submissions in a contest (Admin/Company)' })
+  async checkPlagiarism(@Param('id') id: string) {
+    const report = await this.plagiarismService.runContestScan(id);
+    return { success: true, data: report };
   }
 }

@@ -7,6 +7,9 @@ import { Submission, VerdictEnum } from '../../database/entities/submission.enti
 import { SubmissionsGateway } from './submissions.gateway';
 import { ProblemsService } from '../problems/problems.service';
 import { LeaderboardService } from '../contests/leaderboard.service';
+import { MinioService } from '../../common/services/minio.service';
+import { GeminiService } from '../../common/services/gemini.service';
+import { MongodbLoggerService } from '../../common/services/mongodb-logger.service';
 
 interface JudgeResult {
   submission_id: string;
@@ -46,6 +49,9 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
     private readonly gateway: SubmissionsGateway,
     private readonly problemsService: ProblemsService,
     private readonly leaderboardService: LeaderboardService,
+    private readonly minioService: MinioService,
+    private readonly geminiService: GeminiService,
+    private readonly mongodbLogger: MongodbLoggerService,
   ) {
     const redisConfig = {
       host: this.configService.get<string>('REDIS_HOST', 'localhost'),
@@ -238,7 +244,7 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
     // Update problem stats
     const submission = await this.submissionRepo.findOne({
       where: { id: submissionId },
-      relations: ['user', 'contest'],
+      relations: ['user', 'contest', 'problem'],
     });
 
     if (submission) {
@@ -246,6 +252,13 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
         submission.problemId,
         verdict === VerdictEnum.AC,
       );
+
+      // Trigger AI review asynchronously if Accepted (AC)
+      if (verdict === VerdictEnum.AC) {
+        this.runAsyncAiReview(submission).catch((err) => {
+          this.logger.error(`AI Review trigger error for ${submission.id}:`, err);
+        });
+      }
 
       // Update contest leaderboard if applicable
       if (submission.contestId && submission.user) {
@@ -293,5 +306,56 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
       compilerOutput: result.compiler_output,
       message: `Judging complete: ${verdict}`,
     });
+
+    // Log execution metrics to MongoDB
+    this.mongodbLogger.logExecution(
+      submissionId,
+      submission?.problemId || 'unknown-problem',
+      result.verdict,
+      result.runtime_ms,
+      result.memory_kb,
+      result.test_cases_passed,
+      result.total_test_cases
+    ).catch((err) => {
+      this.logger.error('Failed to log execution in MongoDB:', err);
+    });
+  }
+
+  private async runAsyncAiReview(submission: Submission) {
+    try {
+      this.logger.log(`Starting background AI Code Review for submission ${submission.id}...`);
+
+      if (!submission.codeKey) {
+        this.logger.warn(`No codeKey found for submission ${submission.id}. Skipping AI review.`);
+        return;
+      }
+
+      // 1. Fetch source code from MinIO
+      const code = await this.minioService.getCode(submission.codeKey);
+
+      // 2. Request Gemini Code Review
+      const aiReview = await this.geminiService.reviewCode(
+        code,
+        submission.language,
+        submission.problem?.title || 'Coding Problem',
+        submission.problem?.descriptionMd || 'Analyze this code.',
+      );
+
+      if (aiReview) {
+        // 3. Persist AI review result in Postgres
+        await this.submissionRepo.update(submission.id, { aiReview });
+        this.logger.log(`AI Code Review saved in DB for submission ${submission.id}`);
+
+        // 4. Broadcast the review details via WebSocket
+        this.gateway.emitSubmissionStatus(submission.id, {
+          submissionId: submission.id,
+          status: submission.verdict,
+          aiReview,
+          message: 'AI Code Review complete',
+        });
+      }
+    } catch (error: any) {
+      this.logger.error(`Failed to run background AI review for ${submission.id}:`, error);
+    }
   }
 }
