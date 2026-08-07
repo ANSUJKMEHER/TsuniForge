@@ -1,0 +1,487 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { useParams } from "next/navigation";
+import Editor from "@monaco-editor/react";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth.store";
+
+// ─── Navbar for Workspace ────────────────────
+function WorkspaceNavbar() {
+  const { user, isAuthenticated } = useAuthStore();
+  return (
+    <nav className="h-14 border-b border-white/5 bg-surface-950 flex items-center justify-between px-4 shrink-0">
+      <div className="flex items-center gap-4">
+        <Link href="/problems" className="text-slate-400 hover:text-white transition-colors">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </Link>
+        <span className="font-semibold text-white">Problem Workspace</span>
+      </div>
+      <div className="flex items-center gap-3">
+        {isAuthenticated && user ? (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-xs font-bold text-white">
+              {user.username?.charAt(0).toUpperCase() || "U"}
+            </div>
+            <span className="text-sm text-slate-300 font-medium">{user.username}</span>
+          </div>
+        ) : (
+          <Link href="/login" className="btn-primary text-xs px-4 py-2 rounded-lg">
+            Sign In to Submit
+          </Link>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+// ─── Problem Detail Page ─────────────────────
+
+export default function ProblemWorkspace() {
+  const params = useParams();
+  const slug = params.slug as string;
+  const { accessToken, isAuthenticated, user } = useAuthStore();
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const [language, setLanguage] = useState("cpp");
+  const [code, setCode] = useState("");
+  const [output, setOutput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"description" | "submissions">("description");
+  const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
+
+  // Fetch problem details
+  const { data, isLoading } = useQuery({
+    queryKey: ["problem", slug],
+    queryFn: () => api.getProblem(slug),
+  });
+
+  const problem = data?.data;
+
+  // Fetch user submissions
+  const { data: submissionsData, refetch: refetchSubmissions } = useQuery({
+    queryKey: ["submissions", problem?.id, user?.id],
+    queryFn: () => api.getSubmissions({ problemId: problem.id, userId: user?.id }, accessToken!),
+    enabled: !!problem?.id && !!accessToken && !!user?.id,
+  });
+
+  const submissions = submissionsData?.data || [];
+
+  const handleSelectSubmission = async (subId: string) => {
+    try {
+      const res = await api.getSubmission(subId, accessToken!);
+      setSelectedSubmission(res.data);
+    } catch (err) {
+      console.error("Failed to load submission details:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "submissions" && isAuthenticated) {
+      refetchSubmissions();
+    }
+  }, [activeTab, isAuthenticated, refetchSubmissions]);
+
+  // Set default code template when language changes
+  useEffect(() => {
+    if (language === "cpp") {
+      setCode("#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n  // Your code here\n  return 0;\n}");
+    } else if (language === "java") {
+      setCode("import java.util.*;\n\npublic class Solution {\n  public static void main(String[] args) {\n    // Your code here\n  }\n}");
+    } else if (language === "python") {
+      setCode("def solve():\n  # Your code here\n  pass\n\nif __name__ == '__main__':\n  solve()");
+    }
+  }, [language]);
+
+  const handleRun = async () => {
+    if (!problem) return;
+    if (!isAuthenticated || !accessToken) {
+      setOutput("⚠ Please sign in to run code.");
+      return;
+    }
+    setIsSubmitting(true);
+    setOutput("Running code against sample test cases...");
+
+    try {
+      const result = await api.runCode(problem.id, language, code, "", accessToken);
+      setOutput(result?.data?.output || "No output returned.");
+    } catch (err: any) {
+      setOutput(`Error: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!problem) return;
+    if (!isAuthenticated || !accessToken) {
+      setOutput("⚠ Please sign in to submit code.");
+      return;
+    }
+    setIsSubmitting(true);
+    setOutput("⏳ Submitting code to judge engine...\n");
+
+    try {
+      const result = await api.submitCode(problem.id, language, code, accessToken);
+      const submissionId = result?.data?.id;
+
+      if (!submissionId) {
+        setOutput("Error: No submission ID returned.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      setOutput(`⏳ Submission ${submissionId.slice(0, 8)}... queued for judging\n`);
+
+      // Poll for results (WebSocket is optional enhancement)
+      let attempts = 0;
+      const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+          const sub = await api.getSubmission(submissionId, accessToken);
+          const submission = sub?.data;
+
+          if (submission && submission.verdict !== "PENDING") {
+            clearInterval(pollInterval);
+            const verdictEmoji =
+              submission.verdict === "AC" ? "✅" :
+              submission.verdict === "WA" ? "❌" :
+              submission.verdict === "TLE" ? "⏰" :
+              submission.verdict === "MLE" ? "💾" :
+              submission.verdict === "CE" ? "🔧" : "💥";
+
+            setOutput(
+              `${verdictEmoji} Verdict: ${submission.verdict}\n` +
+              `⏱ Runtime: ${submission.runtimeMs}ms\n` +
+              `💾 Memory: ${Math.round((submission.memoryKb || 0) / 1024 * 10) / 10} MB\n` +
+              `📋 Test Cases: ${submission.testCasesPassed}/${submission.totalTestCases} passed\n` +
+              `📊 Score: ${Math.round(submission.score || 0)}%`
+            );
+            setIsSubmitting(false);
+            setActiveTab("submissions");
+            refetchSubmissions();
+          }
+        } catch {
+          // Ignore polling errors
+        }
+
+        if (attempts > 30) {
+          clearInterval(pollInterval);
+          setOutput("⏳ Judging is taking longer than expected. Check submissions tab.");
+          setIsSubmitting(false);
+        }
+      }, 2000);
+    } catch (err: any) {
+      setOutput(`Error: ${err.message}`);
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-surface-950 flex items-center justify-center text-slate-400">
+        Loading problem...
+      </div>
+    );
+  }
+
+  if (!problem) {
+    return (
+      <div className="min-h-screen bg-surface-950 flex flex-col items-center justify-center text-slate-400 gap-4">
+        <div>Problem not found.</div>
+        <Link href="/problems" className="text-emerald-400 hover:underline">
+          Back to Problems
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-surface-950 overflow-hidden">
+      <WorkspaceNavbar />
+
+      <main className="flex-1 flex overflow-hidden">
+        {/* Left Pane: Problem Description */}
+        <div className="w-1/2 flex flex-col border-r border-white/5 bg-surface-900/30">
+          {/* Tabs */}
+          <div className="flex items-center gap-6 px-6 border-b border-white/5 h-12 shrink-0">
+            <button
+              className={`h-full text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "description"
+                  ? "border-emerald-500 text-emerald-400"
+                  : "border-transparent text-slate-400 hover:text-white"
+              }`}
+              onClick={() => setActiveTab("description")}
+            >
+              Description
+            </button>
+            <button
+              className={`h-full text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "submissions"
+                  ? "border-emerald-500 text-emerald-400"
+                  : "border-transparent text-slate-400 hover:text-white"
+              }`}
+              onClick={() => setActiveTab("submissions")}
+            >
+              Submissions
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+            {activeTab === "description" ? (
+              <div className="prose prose-invert prose-slate max-w-none">
+                <div className="flex items-center gap-3 mb-4">
+                  <h1 className="text-2xl font-bold text-white m-0">{problem.title}</h1>
+                  <span
+                    className={`badge ${
+                      problem.difficulty === "easy"
+                        ? "badge-easy"
+                        : problem.difficulty === "medium"
+                        ? "badge-medium"
+                        : "badge-hard"
+                    }`}
+                  >
+                    {problem.difficulty.charAt(0).toUpperCase() + problem.difficulty.slice(1)}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-8">
+                  {problem.tags?.map((tag: string) => (
+                    <span key={tag} className="text-xs text-slate-400 bg-white/5 px-2.5 py-1 rounded-md">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Render Markdown-like description text */}
+                <div className="text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {problem.descriptionMd}
+                </div>
+
+                {/* Sample Test Cases */}
+                {problem.testCases?.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-semibold text-white mb-4">Sample Test Cases</h3>
+                    {problem.testCases.map((tc: any, idx: number) => (
+                      <div key={tc.id} className="mb-6 bg-surface-950 rounded-xl border border-white/5 p-4">
+                        <div className="mb-3">
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Input</div>
+                          <pre className="font-mono text-sm text-slate-300 bg-white/[0.02] p-3 rounded-lg border border-white/5">
+                            {tc.input}
+                          </pre>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Expected Output</div>
+                          <pre className="font-mono text-sm text-green-400 bg-green-500/[0.02] p-3 rounded-lg border border-green-500/10">
+                            {tc.expectedOutput}
+                          </pre>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 text-slate-300">
+                {selectedSubmission ? (
+                  <div className="flex flex-col gap-6">
+                    <button
+                      onClick={() => setSelectedSubmission(null)}
+                      className="text-xs text-emerald-400 hover:underline flex items-center gap-1 self-start"
+                    >
+                      &larr; Back to list
+                    </button>
+
+                    <div className="glass rounded-xl p-5 border border-white/5 bg-surface-900/50">
+                      <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-wider">Submission Stats</h4>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-slate-500 block text-xs">Verdict</span>
+                          <span className={`font-semibold ${selectedSubmission.verdict === 'AC' ? 'text-green-400' : 'text-red-400'}`}>
+                            {selectedSubmission.verdict}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-xs">Submitted At</span>
+                          <span className="font-mono text-xs text-slate-400">
+                            {new Date(selectedSubmission.submittedAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-xs">Runtime</span>
+                          <span className="font-mono text-slate-300">{selectedSubmission.runtimeMs} ms</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-xs">Memory</span>
+                          <span className="font-mono text-slate-300">
+                            {Math.round((selectedSubmission.memoryKb || 0) / 1024 * 10) / 10} MB
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedSubmission.aiReview && (
+                      <div className="glass rounded-xl p-5 border border-emerald-500/20 bg-emerald-500/[0.02]">
+                        <h4 className="text-sm font-bold text-emerald-400 mb-4 flex items-center gap-2">
+                          <span className="animate-pulse">🤖</span> Gemini AI Code Review
+                        </h4>
+                        
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-lg">
+                            <span className="text-xs text-slate-500 block">Time Complexity</span>
+                            <span className="text-sm text-slate-200 font-mono font-bold">{selectedSubmission.aiReview.timeComplexity}</span>
+                          </div>
+                          <div className="bg-white/[0.02] border border-white/5 p-3 rounded-lg">
+                            <span className="text-xs text-slate-500 block">Space Complexity</span>
+                            <span className="text-sm text-slate-200 font-mono font-bold">{selectedSubmission.aiReview.spaceComplexity}</span>
+                          </div>
+                        </div>
+
+                        <div className="mb-4">
+                          <span className="text-xs text-slate-500 block mb-1">Feedback</span>
+                          <p className="text-sm text-slate-300 leading-relaxed">
+                            {selectedSubmission.aiReview.feedback}
+                          </p>
+                        </div>
+
+                        {selectedSubmission.aiReview.suggestions?.length > 0 && (
+                          <div>
+                            <span className="text-xs text-slate-500 block mb-2">Suggestions</span>
+                            <ul className="list-disc pl-5 text-sm text-slate-300 flex flex-col gap-1.5">
+                              {selectedSubmission.aiReview.suggestions.map((sug: string, i: number) => (
+                                <li key={i}>{sug}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="glass rounded-xl p-5 border border-white/5">
+                      <h4 className="text-sm font-bold text-white mb-3 uppercase tracking-wider">Submitted Source Code</h4>
+                      <pre className="font-mono text-sm bg-surface-950 p-4 rounded-xl border border-white/5 overflow-x-auto whitespace-pre text-slate-300 max-h-96">
+                        {selectedSubmission.code || '/* No code returned */'}
+                      </pre>
+                    </div>
+                  </div>
+                ) : submissions.length === 0 ? (
+                  <div className="text-center py-10 text-slate-500 text-sm">
+                    No submissions found for this problem.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {submissions.map((sub: any) => (
+                      <div
+                        key={sub.id}
+                        onClick={() => handleSelectSubmission(sub.id)}
+                        className="glass rounded-xl p-4 flex items-center justify-between border border-white/5 cursor-pointer hover:bg-white/[0.02] hover:border-white/10 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`w-2 h-2 rounded-full ${sub.verdict === 'AC' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                          <span className={`font-semibold ${sub.verdict === 'AC' ? 'text-green-400' : 'text-red-400'}`}>
+                            {sub.verdict}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {new Date(sub.submittedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="flex gap-4 text-xs font-mono items-center">
+                          <span className="text-slate-300">{sub.runtimeMs} ms</span>
+                          <span className="text-slate-300">
+                            {Math.round((sub.memoryKb || 0) / 1024 * 10) / 10} MB
+                          </span>
+                          <span className="text-slate-500 uppercase">{sub.language}</span>
+                          <span className="text-slate-400 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all">&rarr;</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Pane: Code Editor */}
+        <div className="w-1/2 flex flex-col bg-[#1e1e1e]">
+          {/* Editor Header */}
+          <div className="h-12 border-b border-white/5 flex items-center justify-between px-4 shrink-0 bg-surface-950">
+            <select
+              className="bg-surface-800 text-slate-300 text-sm rounded-lg px-3 py-1.5 border border-white/10 outline-none hover:border-white/20 transition-colors"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+            >
+              <option value="cpp">C++ 17</option>
+              <option value="java">Java 17</option>
+              <option value="python">Python 3.11</option>
+            </select>
+            <div className="flex items-center gap-2">
+              <button className="text-slate-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Monaco Editor */}
+          <div className="flex-1 min-h-0 pt-2">
+            <Editor
+              height="100%"
+              language={language === "cpp" ? "cpp" : language}
+              theme="vs-dark"
+              value={code}
+              onChange={(val) => setCode(val || "")}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 14,
+                fontFamily: "JetBrains Mono, monospace",
+                lineHeight: 24,
+                padding: { top: 16 },
+                scrollBeyondLastLine: false,
+                smoothScrolling: true,
+                cursorBlinking: "smooth",
+                cursorSmoothCaretAnimation: "on",
+                formatOnPaste: true,
+              }}
+              loading={<div className="text-slate-500 text-sm text-center pt-10">Loading Editor...</div>}
+            />
+          </div>
+
+          {/* Console / Output Area */}
+          <div className="h-64 border-t border-white/5 bg-surface-950 flex flex-col shrink-0">
+            <div className="h-10 border-b border-white/5 px-4 flex items-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Console Output
+            </div>
+            <div className="flex-1 p-4 overflow-y-auto font-mono text-sm whitespace-pre-wrap text-slate-300">
+              {output || "Run your code to see the output here."}
+            </div>
+            {/* Action Bar */}
+            <div className="h-14 border-t border-white/5 px-4 flex items-center justify-end gap-3 shrink-0 bg-surface-900/50">
+              <button
+                className="btn-secondary px-6 py-2 text-sm rounded-lg"
+                onClick={handleRun}
+                disabled={isSubmitting}
+              >
+                Run Code
+              </button>
+              <button
+                className="btn-primary px-6 py-2 text-sm rounded-lg shadow-lg shadow-emerald-500/20"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
