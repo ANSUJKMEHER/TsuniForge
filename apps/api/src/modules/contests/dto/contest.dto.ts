@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ContestTypeEnum } from '../../../database/entities/contest.entity';
 
 export class ContestProblemDto {
   @ApiProperty()
@@ -47,9 +48,14 @@ export class CreateContestDto {
   @IsDateString()
   endTime: string;
 
-  @ApiProperty({ enum: ['public', 'private', 'company'] })
-  @IsEnum(['public', 'private', 'company'])
-  type: string;
+  @ApiProperty({ enum: ContestTypeEnum, default: ContestTypeEnum.RATED })
+  @IsEnum(ContestTypeEnum)
+  type: ContestTypeEnum;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()

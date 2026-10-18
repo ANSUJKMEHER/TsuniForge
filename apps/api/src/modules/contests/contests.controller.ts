@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -14,6 +15,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ContestsService } from './contests.service';
+import { LeaderboardService } from './leaderboard.service';
 import { PlagiarismService } from './plagiarism.service';
 import { CreateContestDto, ContestQueryDto } from './dto/contest.dto';
 import { Public } from '../auth/decorators/public.decorator';
@@ -26,8 +28,17 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 export class ContestsController {
   constructor(
     private readonly contestsService: ContestsService,
+    private readonly leaderboardService: LeaderboardService,
     private readonly plagiarismService: PlagiarismService,
   ) {}
+
+  @Public()
+  @Get(':id/leaderboard')
+  @ApiOperation({ summary: 'Get live contest leaderboard' })
+  async getLeaderboard(@Param('id') id: string) {
+    const leaderboard = await this.leaderboardService.getLeaderboard(id);
+    return { success: true, data: leaderboard };
+  }
 
   @Public()
   @Get()
@@ -87,7 +98,16 @@ export class ContestsController {
   @Roles('admin', 'company')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Run plagiarism scan on all AC submissions in a contest (Admin/Company)' })
-  async checkPlagiarism(@Param('id') id: string) {
+  async checkPlagiarism(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    const contest = await this.contestsService.findOne(id);
+    if (user?.role !== 'admin' && contest.createdBy !== user?.id) {
+      throw new ForbiddenException(
+        'You do not have permission to run plagiarism scans on this contest',
+      );
+    }
     const report = await this.plagiarismService.runContestScan(id);
     return { success: true, data: report };
   }

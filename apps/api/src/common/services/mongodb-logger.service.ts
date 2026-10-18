@@ -21,7 +21,7 @@ export class MongodbLoggerService implements OnModuleInit, OnModuleDestroy {
     );
 
     try {
-      this.client = new MongoClient(uri);
+      this.client = new MongoClient(uri, { serverSelectionTimeoutMS: 1500 });
       await this.client.connect();
       this.db = this.client.db();
       

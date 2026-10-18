@@ -17,16 +17,23 @@ import { User } from '../../database/entities';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'tsuniforge_jwt_secret_dev'),
-        signOptions: {
-          expiresIn: '15m',
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const isProd = configService.get<string>('NODE_ENV') === 'production';
+        const secret = configService.get<string>('JWT_SECRET');
+        if (isProd && (!secret || secret === 'tsuniforge_jwt_secret_dev')) {
+          throw new Error('Fatal: JWT_SECRET must be configured with a secure secret in production');
+        }
+        return {
+          secret: secret || 'tsuniforge_jwt_secret_dev',
+          signOptions: {
+            expiresIn: '15m',
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard, RolesGuard],
-  exports: [AuthService, JwtAuthGuard, RolesGuard],
+  exports: [AuthService, JwtAuthGuard, RolesGuard, JwtModule],
 })
 export class AuthModule {}

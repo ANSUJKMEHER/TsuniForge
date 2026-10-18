@@ -6,21 +6,24 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { io, Socket } from "socket.io-client";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth.store";
 
 export default function LeaderboardPage() {
   const params = useParams();
   const contestId = params.id as string;
+  const { accessToken } = useAuthStore();
   const [liveLeaderboard, setLiveLeaderboard] = useState<any[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   const { data: contestData } = useQuery({
     queryKey: ["contest", contestId],
-    queryFn: () => api.getContest(contestId),
+    queryFn: () => api.getContest(contestId, accessToken || undefined),
   });
 
-  const { data: initialLeaderboard, isLoading } = useQuery({
+  const { data: initialLeaderboard, isLoading, refetch: refetchLeaderboard } = useQuery({
     queryKey: ["leaderboard", contestId],
-    queryFn: () => api.getLeaderboard(contestId),
+    queryFn: () => api.getLeaderboard(contestId, accessToken || undefined),
   });
 
   // Initialize with server data
@@ -30,16 +33,29 @@ export default function LeaderboardPage() {
     }
   }, [initialLeaderboard]);
 
-  // WebSocket Connection
+  // WebSocket Connection with fallback transports and reconnect synchronization (FE-RES-05)
   useEffect(() => {
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:4000/ws";
     const newSocket = io(wsUrl, {
       withCredentials: true,
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
+      auth: { token: accessToken || undefined },
     });
 
     newSocket.on("connect", () => {
+      setIsConnected(true);
       newSocket.emit("join_contest", { contestId });
+      // Re-fetch latest leaderboard from REST API to eliminate stale state on reconnect
+      refetchLeaderboard();
+    });
+
+    newSocket.on("disconnect", () => {
+      setIsConnected(false);
+    });
+
+    newSocket.on("connect_error", (error) => {
+      console.warn("WebSocket connection error:", error.message);
+      setIsConnected(false);
     });
 
     newSocket.on("leaderboard_update", (data: { contestId: string; rankings: any[] }) => {
@@ -54,7 +70,7 @@ export default function LeaderboardPage() {
       newSocket.emit("leave_contest", { contestId });
       newSocket.disconnect();
     };
-  }, [contestId]);
+  }, [contestId, accessToken, refetchLeaderboard]);
 
   if (isLoading) {
     return (
@@ -79,8 +95,18 @@ export default function LeaderboardPage() {
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-xs font-semibold text-green-400 uppercase tracking-wider">Live Updates</span>
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isConnected ? "bg-green-500 animate-pulse" : "bg-amber-500"
+            }`}
+          />
+          <span
+            className={`text-xs font-semibold uppercase tracking-wider ${
+              isConnected ? "text-green-400" : "text-amber-400"
+            }`}
+          >
+            {isConnected ? "Live Updates" : "Connecting..."}
+          </span>
         </div>
       </nav>
 

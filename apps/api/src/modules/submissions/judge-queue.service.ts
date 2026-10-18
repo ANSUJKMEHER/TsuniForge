@@ -41,6 +41,7 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
 
   private readonly SUBMISSION_QUEUE = 'bull:submission_queue:waiting';
   private readonly RESULT_CHANNEL = 'submission_results';
+  private watchdogInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly configService: ConfigService,
@@ -70,16 +71,31 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('Publisher connected to Redis');
     });
 
+    this.publisher.on('error', (err) => {
+      this.logger.error('Publisher Redis connection error:', err);
+    });
+
     this.subscriber.on('connect', () => {
       this.logger.log('Subscriber connected to Redis');
     });
 
+    this.subscriber.on('error', (err) => {
+      this.logger.error('Subscriber Redis connection error:', err);
+    });
+
     // Start listening for judge results
     await this.startResultListener();
+
+    // Start watchdog for stuck PENDING/JUDGING submissions
+    this.startWatchdog();
   }
 
   async onModuleDestroy() {
     this.logger.log('Shutting down Judge Queue Service...');
+    if (this.watchdogInterval) {
+      clearInterval(this.watchdogInterval);
+      this.watchdogInterval = null;
+    }
     if (this.subscriber) {
       await this.subscriber.unsubscribe(this.RESULT_CHANNEL);
       this.subscriber.disconnect();
@@ -87,6 +103,61 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
     if (this.publisher) {
       this.publisher.disconnect();
     }
+  }
+
+  // ─── Reconciliation Watchdog ─────────────────────
+
+  private startWatchdog(): void {
+    // Run watchdog every 30 seconds
+    this.watchdogInterval = setInterval(async () => {
+      try {
+        await this.reconcileStuckSubmissions();
+      } catch (err) {
+        this.logger.error('Error during stuck submission reconciliation watchdog:', err);
+      }
+    }, 30000);
+  }
+
+  async reconcileStuckSubmissions(): Promise<number> {
+    const thresholdDate = new Date(Date.now() - 60 * 1000); // 60 seconds ago
+
+    const stuckSubmissions = await this.submissionRepo
+      .createQueryBuilder('submission')
+      .where('submission.verdict IN (:...verdicts)', {
+        verdicts: [VerdictEnum.PENDING, VerdictEnum.JUDGING],
+      })
+      .andWhere('submission.submittedAt < :threshold', {
+        threshold: thresholdDate,
+      })
+      .getMany();
+
+    if (stuckSubmissions.length === 0) {
+      return 0;
+    }
+
+    this.logger.warn(
+      `Watchdog detected ${stuckSubmissions.length} stuck submissions (>60s). Reconciling...`,
+    );
+
+    for (const sub of stuckSubmissions) {
+      try {
+        await this.submissionRepo.update(sub.id, {
+          verdict: VerdictEnum.SE,
+        });
+
+        this.gateway.emitSubmissionStatus(sub.id, {
+          submissionId: sub.id,
+          status: VerdictEnum.SE,
+          message: 'Judging timed out: Worker did not return evaluation within 60 seconds',
+        });
+
+        this.logger.log(`Reconciled stuck submission ${sub.id} -> SE`);
+      } catch (err) {
+        this.logger.error(`Failed to reconcile submission ${sub.id}:`, err);
+      }
+    }
+
+    return stuckSubmissions.length;
   }
 
   // ─── Enqueue a submission for the Go judge ───────
@@ -224,6 +295,7 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
       MLE: VerdictEnum.MLE,
       RE: VerdictEnum.RE,
       CE: VerdictEnum.CE,
+      SE: VerdictEnum.SE,
     };
 
     const verdict = verdictMap[result.verdict] || VerdictEnum.RE;
@@ -264,7 +336,10 @@ export class JudgeQueueService implements OnModuleInit, OnModuleDestroy {
       if (submission.contestId && submission.user) {
         const contestStartTime =
           submission.contest?.startTime?.getTime() || Date.now();
-        const timeMs = Date.now() - contestStartTime;
+        const submissionTime = submission.submittedAt
+          ? new Date(submission.submittedAt).getTime()
+          : Date.now();
+        const timeMs = Math.max(0, submissionTime - contestStartTime);
 
         const leaderboard = await this.leaderboardService.processSubmission(
           submission.contestId,

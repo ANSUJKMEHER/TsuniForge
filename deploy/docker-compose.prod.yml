@@ -85,14 +85,15 @@ services:
       REDIS_PORT: 6379
       DOCKER_SOCKET: /var/run/docker.sock
       MAX_CONCURRENT_JUDGES: 4
+      SECCOMP_PROFILE: /app/configs/security/seccomp.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/tsuniforge:/tmp/tsuniforge
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - internal
-    privileged: true
 
   # ─── Nginx Reverse Proxy ─────────────────────
   nginx:

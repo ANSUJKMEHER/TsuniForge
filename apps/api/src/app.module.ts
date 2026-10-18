@@ -28,6 +28,7 @@ import { AssessmentsModule } from './modules/assessments/assessments.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from './modules/auth/guards/roles.guard';
 import { MongodbLoggerService } from './common/services/mongodb-logger.service';
 
 @Module({
@@ -90,6 +91,11 @@ import { MongodbLoggerService } from './common/services/mongodb-logger.service';
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    // Global Roles guard for RBAC enforcement
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })

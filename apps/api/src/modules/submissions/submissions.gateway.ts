@@ -9,6 +9,11 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Submission } from '../../database/entities/submission.entity';
 
 @WebSocketGateway({
   cors: {
@@ -25,10 +30,42 @@ export class SubmissionsGateway
 
   private readonly logger = new Logger(SubmissionsGateway.name);
 
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    @InjectRepository(Submission)
+    private readonly submissionRepo: Repository<Submission>,
+  ) {}
+
   // ─── Connection Lifecycle ───────────────────
 
   handleConnection(client: Socket) {
-    this.logger.log(`Client connected: ${client.id}`);
+    try {
+      const auth = client.handshake.auth;
+      const headers = client.handshake.headers;
+      const query = client.handshake.query;
+      let token = auth?.token || headers?.authorization || query?.token;
+
+      if (!token) {
+        this.logger.warn(`Rejecting unauthenticated socket connection: ${client.id}`);
+        client.emit('error', { message: 'Authentication required' });
+        client.disconnect(true);
+        return;
+      }
+
+      if (typeof token === 'string' && token.startsWith('Bearer ')) {
+        token = token.slice(7).trim();
+      }
+
+      const secret = this.configService.get<string>('JWT_SECRET', 'tsuniforge_jwt_secret_dev');
+      const payload = this.jwtService.verify(token as string, { secret });
+      client.data.user = payload;
+      this.logger.log(`Client authenticated: ${client.id} (user: ${payload.sub || payload.id})`);
+    } catch (err: any) {
+      this.logger.warn(`Socket authentication failed for ${client.id}: ${err.message}`);
+      client.emit('error', { message: 'Invalid or expired authentication token' });
+      client.disconnect(true);
+    }
   }
 
   handleDisconnect(client: Socket) {
@@ -38,14 +75,46 @@ export class SubmissionsGateway
   // ─── Subscribe to Submission Updates ────────
 
   @SubscribeMessage('subscribe_submission')
-  handleSubscribeSubmission(
+  async handleSubscribeSubmission(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { submissionId: string },
   ) {
+    const user = client.data?.user;
+    if (!user) {
+      client.disconnect(true);
+      return { event: 'error', data: { message: 'Unauthorized' } };
+    }
+
+    if (!data?.submissionId) {
+      return { event: 'error', data: { message: 'submissionId is required' } };
+    }
+
+    const submission = await this.submissionRepo.findOne({
+      where: { id: data.submissionId },
+    });
+
+    if (!submission) {
+      return { event: 'error', data: { message: 'Submission not found' } };
+    }
+
+    const userId = user.sub || user.id;
+    const isOwner = submission.userId === userId;
+    const isAdmin = user.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      this.logger.warn(
+        `User ${userId} attempted to subscribe to unauthorized submission ${data.submissionId}`,
+      );
+      return {
+        event: 'error',
+        data: { message: 'Forbidden: You do not own this submission' },
+      };
+    }
+
     const room = `submission:${data.submissionId}`;
     client.join(room);
     this.logger.log(
-      `Client ${client.id} subscribed to submission ${data.submissionId}`,
+      `Client ${client.id} (user: ${userId}) subscribed to submission ${data.submissionId}`,
     );
     return { event: 'subscribed', data: { room } };
   }
@@ -86,16 +155,10 @@ export class SubmissionsGateway
   // ─── Emit Methods (called by services) ──────
 
   emitSubmissionStatus(submissionId: string, data: any) {
-    // Emit to the specific submission room
+    // Emit ONLY to the specific submission room — global broadcast removed to prevent data leakage
     this.server
       ?.to(`submission:${submissionId}`)
       .emit('submission_status', data);
-
-    // Also emit globally for anyone listening
-    this.server?.emit('submission_update', {
-      submissionId,
-      ...data,
-    });
   }
 
   emitLeaderboardUpdate(contestId: string, rankings: any[]) {

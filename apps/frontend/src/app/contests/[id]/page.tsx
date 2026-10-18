@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth.store";
 
 // ─── Helper: Format Time ──────────────────────
 function formatDuration(start: string, end: string) {
@@ -72,7 +73,14 @@ export default function ContestDetailPage() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: () => api.registerForContest(contestId, "dummy_token"), // In real app, token is handled by interceptor/store
+    mutationFn: () => {
+      const token = useAuthStore.getState().accessToken;
+      const isAuth = useAuthStore.getState().isAuthenticated;
+      if (!isAuth || !token) {
+        throw new Error("You must be logged in to register for a contest.");
+      }
+      return api.registerForContest(contestId, token, password || undefined);
+    },
     onSuccess: () => {
       alert("Successfully registered for the contest!");
       refetchContest();

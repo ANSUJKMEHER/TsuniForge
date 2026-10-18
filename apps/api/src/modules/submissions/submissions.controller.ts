@@ -8,6 +8,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -53,8 +54,16 @@ export class SubmissionsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get submission details' })
   @ApiResponse({ status: 200, description: 'Submission details' })
-  async findOne(@Param('id') id: string) {
+  async findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
     const submission = await this.submissionsService.findOne(id);
+    if (submission.userId !== user?.id && user?.role !== 'admin') {
+      throw new ForbiddenException(
+        'You do not have permission to view this submission',
+      );
+    }
     return { success: true, data: submission };
   }
 

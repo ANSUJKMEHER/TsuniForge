@@ -51,3 +51,9 @@ apps/judge/*.exe
 
 # TypeScript
 *.tsbuildinfo
+
+# Teamwork Agent Metadata
+.agents/
+desktop.ini
+*.ico
+

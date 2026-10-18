@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -16,11 +17,14 @@ type Config struct {
 	NetworkDisabled bool
 
 	// Execution limits
-	DefaultTimeLimitMs  int
+	DefaultTimeLimitMs   int
 	DefaultMemoryLimitMB int
-	MaxPids             int
-	WallClockMultiplier float64
-	TmpfsSize           string
+	MaxPids              int
+	CompilePids          int
+	WallClockMultiplier  float64
+	TmpfsSize            string
+	BaseWorkDir          string
+	SeccompProfile       string
 
 	// Language configurations
 	Languages map[string]LanguageConfig
@@ -48,8 +52,11 @@ func Load() (*Config, error) {
 		DefaultTimeLimitMs:   getEnvInt("DEFAULT_TIME_LIMIT_MS", 2000),
 		DefaultMemoryLimitMB: getEnvInt("DEFAULT_MEMORY_LIMIT_MB", 256),
 		MaxPids:              getEnvInt("MAX_PIDS", 64),
+		CompilePids:          getEnvInt("COMPILE_PIDS", 128),
 		WallClockMultiplier:  2.0,
-		TmpfsSize:            "50m",
+		TmpfsSize:            getEnv("TMPFS_SIZE", "50m"),
+		BaseWorkDir:          getEnv("SUBMISSIONS_DIR", filepath.Join(os.TempDir(), "tsuniforge")),
+		SeccompProfile:       getEnv("SECCOMP_PROFILE", ""),
 		MaxConcurrentJudges:  getEnvInt("MAX_CONCURRENT_JUDGES", 4),
 		Languages: map[string]LanguageConfig{
 			"cpp": {

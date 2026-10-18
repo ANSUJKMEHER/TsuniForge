@@ -16,7 +16,8 @@ import {
   CreateCompanyDto, 
   CreateAssessmentDto, 
   AddCandidateDto,
-  ReportCheatEventDto
+  ReportCheatEventDto,
+  SubmitAssessmentDto,
 } from './dto/assessment.dto';
 
 @ApiTags('Assessments & Companies')
@@ -51,8 +52,12 @@ export class AssessmentsController {
   @Roles('admin', 'company')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get assessments for a company' })
-  async getCompanyAssessments(@Param('companyId') companyId: string) {
-    const assessments = await this.assessmentsService.getCompanyAssessments(companyId);
+  async getCompanyAssessments(
+    @Param('companyId') companyId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const assessments = await this.assessmentsService.getCompanyAssessments(companyId, userId, role);
     return { success: true, data: assessments };
   }
 
@@ -115,6 +120,18 @@ export class AssessmentsController {
     @CurrentUser('id') userId: string,
   ) {
     const session = await this.assessmentsService.reportCheatEvent(id, userId, dto);
+    return { success: true, data: session };
+  }
+
+  @Post('assessments/:id/submit')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Submit assessment solutions' })
+  async submitAssessment(
+    @Param('id') id: string,
+    @Body() dto: SubmitAssessmentDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    const session = await this.assessmentsService.submitAssessment(id, userId, dto);
     return { success: true, data: session };
   }
 }

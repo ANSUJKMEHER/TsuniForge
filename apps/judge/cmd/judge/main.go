@@ -50,11 +50,14 @@ func main() {
 	sig := <-quit
 
 	fmt.Printf("\n🛑 Received signal %s, shutting down gracefully...\n", sig)
-	cancel()
 
+	// Call consumer.Stop() FIRST to wait for in-flight jobs to complete and publish results
 	if err := consumer.Stop(); err != nil {
 		log.Printf("Error stopping consumer: %v", err)
 	}
+
+	// Cancel root context after consumer has stopped cleanly
+	cancel()
 
 	log.Println("✅ Judge engine stopped")
 }

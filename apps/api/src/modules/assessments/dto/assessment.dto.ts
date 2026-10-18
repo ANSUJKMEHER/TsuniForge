@@ -5,6 +5,7 @@ import {
   IsInt,
   IsBoolean,
   IsOptional,
+  IsNotEmpty,
   MinLength,
   IsDateString,
   ValidateNested,
@@ -17,6 +18,12 @@ export class CreateCompanyDto {
   @IsString()
   @MinLength(2)
   name: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  domain?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -78,15 +85,65 @@ export class AddCandidateDto {
   @ApiProperty()
   @IsString()
   userId: string;
-}
-
-export class ReportCheatEventDto {
-  @ApiProperty({ enum: ['tab_switch', 'window_blur', 'copy_paste', 'multiple_faces'] })
-  @IsEnum(['tab_switch', 'window_blur', 'copy_paste', 'multiple_faces'])
-  eventType: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  metadata?: string;
+  email?: string;
+}
+
+export class ReportCheatEventDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  candidateId?: string;
+
+  @ApiProperty({
+    enum: [
+      'tab_switch',
+      'window_blur',
+      'blur',
+      'copy_paste',
+      'multiple_faces',
+      'fullscreen_exit',
+    ],
+  })
+  @IsString()
+  eventType: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  timestamp?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  metadata?: any;
+}
+
+export class AssessmentAnswerDto {
+  @ApiProperty()
+  @IsString()
+  questionId: string;
+
+  @ApiProperty()
+  @IsString()
+  code: string;
+
+  @ApiProperty()
+  @IsString()
+  language: string;
+}
+
+export class SubmitAssessmentDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  candidateId?: string;
+
+  @ApiProperty({ type: [AssessmentAnswerDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AssessmentAnswerDto)
+  answers: AssessmentAnswerDto[];
 }

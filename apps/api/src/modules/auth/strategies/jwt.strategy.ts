@@ -2,6 +2,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../../../database/entities/user.entity';
 
 export interface JwtPayload {
   sub: string;
@@ -12,7 +15,11 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -24,11 +31,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload.sub) {
       throw new UnauthorizedException('Invalid token payload');
     }
+
+    const user = await this.userRepo.findOne({
+      where: { id: payload.sub },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User account no longer exists');
+    }
+
+    if (user.profileMetadata?.isBanned || user.profileMetadata?.isActive === false) {
+      throw new UnauthorizedException('User account is suspended or banned');
+    }
+
     return {
-      id: payload.sub,
-      username: payload.username,
-      email: payload.email,
-      role: payload.role,
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
     };
   }
 }

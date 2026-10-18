@@ -46,13 +46,50 @@ export default function ProblemWorkspace() {
   const slug = params.slug as string;
   const { accessToken, isAuthenticated, user } = useAuthStore();
   const wsRef = useRef<WebSocket | null>(null);
+  const editorRef = useRef<any>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const STARTER_TEMPLATES: Record<string, string> = {
+    cpp: "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n  // Your code here\n  return 0;\n}",
+    java: "import java.util.*;\n\npublic class Solution {\n  public static void main(String[] args) {\n    // Your code here\n  }\n}",
+    python: "def solve():\n  # Your code here\n  pass\n\nif __name__ == '__main__':\n  solve()",
+  };
 
   const [language, setLanguage] = useState("cpp");
-  const [code, setCode] = useState("");
+  const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>(STARTER_TEMPLATES);
+  const code = codeByLanguage[language] ?? STARTER_TEMPLATES[language] ?? "";
+
   const [output, setOutput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"description" | "submissions">("description");
   const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
+
+  // Clean up Monaco editor text models on unmount (FE-RES-02)
+  useEffect(() => {
+    return () => {
+      if (editorRef.current) {
+        editorRef.current.getModel()?.dispose();
+      }
+    };
+  }, []);
+
+  // Clean up polling interval on unmount (FE-RES-03)
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleCodeChange = (val?: string) => {
+    const updated = val ?? "";
+    setCodeByLanguage((prev) => ({
+      ...prev,
+      [language]: updated,
+    }));
+  };
 
   // Fetch problem details
   const { data, isLoading } = useQuery({
@@ -85,17 +122,6 @@ export default function ProblemWorkspace() {
       refetchSubmissions();
     }
   }, [activeTab, isAuthenticated, refetchSubmissions]);
-
-  // Set default code template when language changes
-  useEffect(() => {
-    if (language === "cpp") {
-      setCode("#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n  // Your code here\n  return 0;\n}");
-    } else if (language === "java") {
-      setCode("import java.util.*;\n\npublic class Solution {\n  public static void main(String[] args) {\n    // Your code here\n  }\n}");
-    } else if (language === "python") {
-      setCode("def solve():\n  # Your code here\n  pass\n\nif __name__ == '__main__':\n  solve()");
-    }
-  }, [language]);
 
   const handleRun = async () => {
     if (!problem) return;
@@ -137,16 +163,24 @@ export default function ProblemWorkspace() {
 
       setOutput(`⏳ Submission ${submissionId.slice(0, 8)}... queued for judging\n`);
 
-      // Poll for results (WebSocket is optional enhancement)
+      // Clear any prior polling
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+
+      // Poll for results with ref-managed interval (FE-RES-03)
       let attempts = 0;
-      const pollInterval = setInterval(async () => {
+      pollIntervalRef.current = setInterval(async () => {
         attempts++;
         try {
           const sub = await api.getSubmission(submissionId, accessToken);
           const submission = sub?.data;
 
           if (submission && submission.verdict !== "PENDING") {
-            clearInterval(pollInterval);
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
             const verdictEmoji =
               submission.verdict === "AC" ? "✅" :
               submission.verdict === "WA" ? "❌" :
@@ -170,7 +204,10 @@ export default function ProblemWorkspace() {
         }
 
         if (attempts > 30) {
-          clearInterval(pollInterval);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
           setOutput("⏳ Judging is taking longer than expected. Check submissions tab.");
           setIsSubmitting(false);
         }
@@ -437,7 +474,10 @@ export default function ProblemWorkspace() {
               language={language === "cpp" ? "cpp" : language}
               theme="vs-dark"
               value={code}
-              onChange={(val) => setCode(val || "")}
+              onMount={(editor) => {
+                editorRef.current = editor;
+              }}
+              onChange={handleCodeChange}
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,

@@ -19,6 +19,7 @@ WORKDIR /app
 
 # Copy the compiled binary from the builder stage
 COPY --from=builder /judge-engine /app/judge-engine
+COPY configs/ /app/configs/
 
 # Expose no ports (it's a worker)
 CMD ["/app/judge-engine"]

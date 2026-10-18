@@ -1,21 +1,45 @@
+import { useAuthStore } from "@/stores/auth.store";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 interface FetchOptions extends RequestInit {
   token?: string;
+  _retry?: boolean;
+}
+
+interface RefreshSubscriber {
+  resolve: (token: string) => void;
+  reject: (err: any) => void;
 }
 
 class ApiClient {
   private baseUrl: string;
+  private isRefreshing = false;
+  private refreshSubscribers: RefreshSubscriber[] = [];
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
+  }
+
+  private onTokenRefreshed(token: string) {
+    this.refreshSubscribers.forEach((sub) => sub.resolve(token));
+    this.refreshSubscribers = [];
+  }
+
+  private onTokenRefreshFailed(err: any) {
+    this.refreshSubscribers.forEach((sub) => sub.reject(err));
+    this.refreshSubscribers = [];
+  }
+
+  private addRefreshSubscriber(subscriber: RefreshSubscriber) {
+    this.refreshSubscribers.push(subscriber);
   }
 
   private async request<T>(
     endpoint: string,
     options: FetchOptions = {}
   ): Promise<T> {
-    const { token, ...fetchOptions } = options;
+    const { token, _retry, ...fetchOptions } = options;
 
     const headers: HeadersInit = {
       "Content-Type": "application/json",
@@ -31,11 +55,85 @@ class ApiClient {
       headers,
     });
 
-    const data = await response.json();
+    // Handle 204 No Content safely
+    if (response.status === 204) {
+      return {} as T;
+    }
+
+    // 401 Interceptor: attempt token refresh and replay request
+    if (response.status === 401 && !_retry && typeof window !== "undefined") {
+      const refreshToken = useAuthStore.getState().refreshToken;
+      if (refreshToken && endpoint !== "/api/v1/auth/refresh" && endpoint !== "/api/v1/auth/login") {
+        if (!this.isRefreshing) {
+          this.isRefreshing = true;
+          try {
+            const refreshRes = await this.refreshTokens(refreshToken);
+            const newAccessToken =
+              refreshRes?.data?.accessToken || refreshRes?.accessToken;
+            const newRefreshToken =
+              refreshRes?.data?.refreshToken || refreshRes?.refreshToken || refreshToken;
+
+            if (newAccessToken) {
+              useAuthStore.getState().setTokens(newAccessToken, newRefreshToken);
+              this.onTokenRefreshed(newAccessToken);
+
+              return this.request<T>(endpoint, {
+                ...options,
+                token: newAccessToken,
+                _retry: true,
+              });
+            } else {
+              throw new ApiError("Failed to obtain new access token", 401, null);
+            }
+          } catch (refreshErr) {
+            this.onTokenRefreshFailed(refreshErr);
+            useAuthStore.getState().clearAuth();
+            throw new ApiError("Session expired. Please log in again.", 401, null);
+          } finally {
+            this.isRefreshing = false;
+          }
+        } else {
+          // Wait for token refresh in-flight
+          return new Promise<T>((resolve, reject) => {
+            this.addRefreshSubscriber({
+              resolve: async (newToken: string) => {
+                try {
+                  const retryRes = await this.request<T>(endpoint, {
+                    ...options,
+                    token: newToken,
+                    _retry: true,
+                  });
+                  resolve(retryRes);
+                } catch (err) {
+                  reject(err);
+                }
+              },
+              reject: (err: any) => {
+                reject(err);
+              },
+            });
+          });
+        }
+      }
+    }
+
+    const contentType = response.headers.get("content-type");
+    let data: any = null;
+
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { message: text };
+      }
+    }
 
     if (!response.ok) {
       throw new ApiError(
-        data.message || "An error occurred",
+        data?.message || `Request failed with status ${response.status}`,
         response.status,
         data
       );
@@ -167,9 +265,10 @@ class ApiClient {
     return this.request<any>(`/api/v1/contests/${contestId}/problems`, { token });
   }
 
-  async registerForContest(contestId: string, token: string) {
+  async registerForContest(contestId: string, token: string, password?: string) {
     return this.request<any>(`/api/v1/contests/${contestId}/register`, {
       method: "POST",
+      body: password ? JSON.stringify({ password }) : undefined,
       token,
     });
   }
@@ -185,6 +284,66 @@ class ApiClient {
 
   async getGlobalLeaderboard(limit = 50) {
     return this.request<any>(`/api/v1/users/leaderboard?limit=${limit}`);
+  }
+
+  // ─── Assessments & Proctoring ─────────────
+
+  async getAssessment(id: string, token?: string) {
+    return this.request<any>(`/api/v1/assessments/${id}`, { token });
+  }
+
+  async getAssessmentSession(id: string, token: string) {
+    return this.request<any>(`/api/v1/assessments/${id}/session`, { token });
+  }
+
+  async startAssessment(id: string, token: string) {
+    return this.request<any>(`/api/v1/assessments/${id}/start`, {
+      method: "POST",
+      token,
+    });
+  }
+
+  async completeAssessment(id: string, token: string) {
+    return this.request<any>(`/api/v1/assessments/${id}/complete`, {
+      method: "POST",
+      token,
+    });
+  }
+
+  async reportCheatEvent(
+    assessmentId: string,
+    candidateId: string | undefined,
+    eventType: string,
+    timestamp?: string,
+    token?: string,
+    metadata?: any
+  ) {
+    return this.request<any>(`/api/v1/assessments/${assessmentId}/cheat-event`, {
+      method: "POST",
+      body: JSON.stringify({
+        candidateId,
+        eventType,
+        timestamp: timestamp || new Date().toISOString(),
+        metadata,
+      }),
+      token,
+    });
+  }
+
+  async submitAssessment(
+    assessmentId: string,
+    candidateId: string | undefined,
+    answers: Array<{ questionId: string; code: string; language: string }>,
+    token: string
+  ) {
+    return this.request<any>(`/api/v1/assessments/${assessmentId}/submit`, {
+      method: "POST",
+      body: JSON.stringify({
+        candidateId,
+        answers,
+      }),
+      token,
+    });
   }
 }
 

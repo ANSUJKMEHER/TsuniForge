@@ -4,7 +4,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, In } from 'typeorm';
+import { Repository, DataSource, ILike, In } from 'typeorm';
 import { Problem, DifficultyEnum } from '../../database/entities/problem.entity';
 import { TestCase } from '../../database/entities/test-case.entity';
 import { CreateProblemDto, UpdateProblemDto, ProblemQueryDto } from './dto/problem.dto';
@@ -16,6 +16,7 @@ export class ProblemsService {
     private readonly problemRepo: Repository<Problem>,
     @InjectRepository(TestCase)
     private readonly testCaseRepo: Repository<TestCase>,
+    private readonly dataSource: DataSource,
   ) {}
 
   // ─── Create Problem (Admin) ─────────────────
@@ -23,36 +24,40 @@ export class ProblemsService {
   async create(dto: CreateProblemDto, userId: string) {
     const slug = this.generateSlug(dto.title);
 
-    const problem = this.problemRepo.create({
-      title: dto.title,
-      slug,
-      descriptionMd: dto.descriptionMd,
-      difficulty: dto.difficulty as DifficultyEnum,
-      tags: dto.tags,
-      timeLimitMs: dto.timeLimitMs || 2000,
-      memoryLimitMb: dto.memoryLimitMb || 256,
-      createdBy: userId,
-      isPublished: false,
+    const savedSlug = await this.dataSource.transaction(async (manager) => {
+      const problem = manager.create(Problem, {
+        title: dto.title,
+        slug,
+        descriptionMd: dto.descriptionMd,
+        difficulty: dto.difficulty as DifficultyEnum,
+        tags: dto.tags,
+        timeLimitMs: dto.timeLimitMs || 2000,
+        memoryLimitMb: dto.memoryLimitMb || 256,
+        createdBy: userId,
+        isPublished: false,
+      });
+
+      const savedProblem = await manager.save(problem);
+
+      // Create test cases
+      if (dto.testCases && dto.testCases.length > 0) {
+        const testCases = dto.testCases.map((tc, index) =>
+          manager.create(TestCase, {
+            problemId: savedProblem.id,
+            input: tc.input,
+            expectedOutput: tc.expectedOutput,
+            isSample: tc.isSample,
+            orderIndex: tc.orderIndex ?? index,
+            scoreWeight: tc.scoreWeight ?? 1.0,
+          }),
+        );
+        await manager.save(testCases);
+      }
+
+      return savedProblem.slug;
     });
 
-    const savedProblem = await this.problemRepo.save(problem);
-
-    // Create test cases
-    if (dto.testCases && dto.testCases.length > 0) {
-      const testCases = dto.testCases.map((tc, index) =>
-        this.testCaseRepo.create({
-          problemId: savedProblem.id,
-          input: tc.input,
-          expectedOutput: tc.expectedOutput,
-          isSample: tc.isSample,
-          orderIndex: tc.orderIndex ?? index,
-          scoreWeight: tc.scoreWeight ?? 1.0,
-        }),
-      );
-      await this.testCaseRepo.save(testCases);
-    }
-
-    return this.findBySlug(savedProblem.slug);
+    return this.findBySlug(savedSlug);
   }
 
   // ─── List Problems (Paginated + Filtered) ───
@@ -175,47 +180,36 @@ export class ProblemsService {
   // ─── Delete Problem (Admin) ─────────────────
 
   async remove(id: string) {
-    const problem = await this.problemRepo.findOne({ where: { id } });
+    return await this.dataSource.transaction(async (manager) => {
+      const problem = await manager.findOne(Problem, { where: { id } });
 
-    if (!problem) {
-      throw new NotFoundException('Problem not found');
-    }
+      if (!problem) {
+        throw new NotFoundException('Problem not found');
+      }
 
-    await this.testCaseRepo.delete({ problemId: id });
-    await this.problemRepo.remove(problem);
+      await manager.delete(TestCase, { problemId: id });
+      await manager.remove(problem);
 
-    return { message: 'Problem deleted successfully' };
+      return { message: 'Problem deleted successfully' };
+    });
   }
 
   // ─── Update Problem Stats ──────────────────
 
   async updateStats(problemId: string, accepted: boolean) {
-    const problem = await this.problemRepo.findOne({
-      where: { id: problemId },
-    });
-
-    if (!problem) return;
-
-    problem.totalSubmissions += 1;
-
-    // Recalculate acceptance rate
-    if (accepted) {
-      const totalAccepted = Math.round(
-        (problem.acceptanceRate / 100) * (problem.totalSubmissions - 1),
-      ) + 1;
-      problem.acceptanceRate = parseFloat(
-        ((totalAccepted / problem.totalSubmissions) * 100).toFixed(1),
-      );
-    } else {
-      const totalAccepted = Math.round(
-        (problem.acceptanceRate / 100) * (problem.totalSubmissions - 1),
-      );
-      problem.acceptanceRate = parseFloat(
-        ((totalAccepted / problem.totalSubmissions) * 100).toFixed(1),
-      );
-    }
-
-    await this.problemRepo.save(problem);
+    // Atomic SQL query builder increment avoiding non-atomic read-modify-write lost updates
+    await this.problemRepo
+      .createQueryBuilder()
+      .update(Problem)
+      .set({
+        totalSubmissions: () => 'total_submissions + 1',
+        acceptanceRate: () =>
+          accepted
+            ? 'ROUND((( (acceptance_rate / 100.0) * total_submissions + 1.0 ) / (total_submissions + 1.0) * 100.0)::numeric, 1)'
+            : 'ROUND((( (acceptance_rate / 100.0) * total_submissions ) / (total_submissions + 1.0) * 100.0)::numeric, 1)',
+      })
+      .where('id = :id', { id: problemId })
+      .execute();
   }
 
   // ─── Helpers ────────────────────────────────

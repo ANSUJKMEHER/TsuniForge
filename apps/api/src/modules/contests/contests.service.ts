@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan, And, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { Repository, DataSource, LessThan, MoreThan, And, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { Contest, ContestTypeEnum } from '../../database/entities/contest.entity';
 import { ContestProblem } from '../../database/entities/contest-problem.entity';
 import { ContestRegistration } from '../../database/entities/contest-registration.entity';
@@ -20,34 +20,41 @@ export class ContestsService {
     private readonly contestProblemRepo: Repository<ContestProblem>,
     @InjectRepository(ContestRegistration)
     private readonly registrationRepo: Repository<ContestRegistration>,
+    private readonly dataSource: DataSource,
   ) {}
 
   // ─── Create Contest (Admin) ─────────────────
 
   async create(dto: CreateContestDto, userId: string) {
-    const contest = new Contest();
-    contest.title = dto.title;
-    contest.description = dto.descriptionMd;
-    contest.startTime = new Date(dto.startTime);
-    contest.endTime = new Date(dto.endTime);
-    contest.type = dto.type as ContestTypeEnum;
-    contest.createdBy = userId;
-
-    const savedContest = await this.contestRepo.save(contest);
-
-    if (dto.problems && dto.problems.length > 0) {
-      const contestProblems = dto.problems.map((p) => {
-        const cp = new ContestProblem();
-        cp.contestId = savedContest.id;
-        cp.problemId = p.problemId;
-        cp.label = p.label;
-        cp.maxScore = p.score;
-        return cp;
+    const savedContestId = await this.dataSource.transaction(async (manager) => {
+      const contest = manager.create(Contest, {
+        title: dto.title,
+        description: dto.descriptionMd,
+        startTime: new Date(dto.startTime),
+        endTime: new Date(dto.endTime),
+        type: dto.type,
+        isPublic: dto.isPublic !== undefined ? dto.isPublic : true,
+        createdBy: userId,
       });
-      await this.contestProblemRepo.save(contestProblems);
-    }
 
-    return this.findOne(savedContest.id);
+      const saved = await manager.save(contest);
+
+      if (dto.problems && dto.problems.length > 0) {
+        const contestProblems = dto.problems.map((p) =>
+          manager.create(ContestProblem, {
+            contestId: saved.id,
+            problemId: p.problemId,
+            label: p.label,
+            maxScore: p.score,
+          }),
+        );
+        await manager.save(contestProblems);
+      }
+
+      return saved.id;
+    });
+
+    return this.findOne(savedContestId);
   }
 
   // ─── List Contests ──────────────────────────

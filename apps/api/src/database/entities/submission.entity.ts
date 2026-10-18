@@ -26,6 +26,7 @@ export enum VerdictEnum {
   MLE = 'MLE',
   RE = 'RE',
   CE = 'CE',
+  SE = 'SE',
 }
 
 @Entity('submissions')
@@ -76,7 +77,7 @@ export class Submission {
   @CreateDateColumn({ name: 'submitted_at' })
   submittedAt: Date;
 
-  @Column({ name: 'code_key', nullable: true })
+  @Column({ name: 'code_key', type: 'varchar', nullable: true })
   codeKey: string | null;
 
   @Column({ type: 'jsonb', name: 'ai_review', nullable: true })
@@ -88,7 +89,9 @@ export class Submission {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @ManyToOne(() => Problem, (problem) => problem.submissions)
+  @ManyToOne(() => Problem, (problem) => problem.submissions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'problem_id' })
   problem: Problem;
 

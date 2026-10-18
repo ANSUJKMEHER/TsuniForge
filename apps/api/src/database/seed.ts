@@ -255,6 +255,7 @@ Print "YES" if valid, "NO" otherwise.
 async function seed() {
   console.log('Connecting to database...');
   await dataSource.initialize();
+  await dataSource.synchronize();
 
   const userRepo = dataSource.getRepository('User');
   const problemRepo = dataSource.getRepository('Problem');

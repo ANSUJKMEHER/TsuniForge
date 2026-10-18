@@ -33,11 +33,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
         error = resp.error || 'Error';
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
       this.logger.error(
         `Unhandled exception: ${exception.message}`,
         exception.stack,
       );
+
+      const isDev = process.env.NODE_ENV === 'development';
+      const isDbError =
+        exception.name?.includes('QueryFailedError') ||
+        (exception as any).driverError ||
+        /syntax error|violates .* constraint|relation ".*" does not exist|column ".*" does not exist/i.test(
+          exception.message,
+        );
+
+      if (isDbError || !isDev) {
+        message = 'An unexpected internal error occurred';
+        error = 'InternalServerError';
+      } else {
+        message = exception.message;
+        error = exception.name || 'Error';
+      }
     }
 
     response.status(status).json({

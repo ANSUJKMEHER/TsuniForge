@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,13 +14,32 @@ import { User } from '../../database/entities';
 import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/auth.dto';
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {}
+
+  onModuleInit() {
+    const isProd = this.configService.get<string>('NODE_ENV') === 'production';
+    const jwtSecret = this.configService.get<string>('JWT_SECRET');
+    const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+
+    if (isProd) {
+      if (!jwtSecret || jwtSecret === 'tsuniforge_jwt_secret_dev' || jwtSecret.length < 32) {
+        throw new Error(
+          'Fatal security configuration error: JWT_SECRET must be at least 32 characters long in production.',
+        );
+      }
+      if (!refreshSecret || refreshSecret === 'tsuniforge_refresh_secret_dev' || refreshSecret.length < 32) {
+        throw new Error(
+          'Fatal security configuration error: JWT_REFRESH_SECRET must be at least 32 characters long in production.',
+        );
+      }
+    }
+  }
 
   // ─── Register ───────────────────────────────
 
@@ -79,6 +99,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.profileMetadata?.isBanned || user.profileMetadata?.isActive === false) {
+      throw new UnauthorizedException('Account suspended');
+    }
+
     const tokens = await this.generateTokens(user);
     await this.updateRefreshToken(user.id, tokens.refreshToken);
 
@@ -93,7 +117,10 @@ export class AuthService {
   async refreshTokens(dto: RefreshTokenDto) {
     try {
       const payload = this.jwtService.verify(dto.refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET', 'tsuniforge_refresh_secret_dev'),
+        secret: this.configService.get<string>(
+          'JWT_REFRESH_SECRET',
+          'tsuniforge_refresh_secret_dev',
+        ),
       });
 
       const user = await this.userRepository.findOne({
@@ -104,18 +131,71 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      // Verify the stored refresh token matches
-      const isRefreshTokenValid = await bcrypt.compare(dto.refreshToken, user.refreshToken);
-
-      if (!isRefreshTokenValid) {
-        throw new UnauthorizedException('Invalid refresh token');
+      if (user.profileMetadata?.isBanned || user.profileMetadata?.isActive === false) {
+        throw new UnauthorizedException('Account suspended');
       }
 
+      // Check current token
+      let isValid = await bcrypt.compare(dto.refreshToken, user.refreshToken);
+
+      // Check 30-second concurrency grace window
+      const profileMetadata = user.profileMetadata || {};
+      const previousHash = profileMetadata.previousRefreshToken;
+      const rotatedAt = profileMetadata.tokenRotatedAt;
+      const isWithinGraceWindow =
+        rotatedAt && Date.now() - Number(rotatedAt) < 30000;
+
+      if (!isValid && isWithinGraceWindow && previousHash) {
+        const isPreviousValid = await bcrypt.compare(
+          dto.refreshToken,
+          previousHash,
+        );
+        if (isPreviousValid) {
+          // During the 30s grace window when a duplicate request arrives matching previousRefreshToken,
+          // return the current valid session tokens without invalidating the user's active session,
+          // ensuring the client can continue refreshing normally.
+          if (profileMetadata.currentTokens) {
+            return profileMetadata.currentTokens;
+          }
+          return this.generateTokens(user);
+        }
+      }
+
+      if (!isValid) {
+        // Token reuse or expired token outside grace window: Breach detection
+        await this.userRepository.update(user.id, {
+          refreshToken: '',
+          profileMetadata: {
+            ...profileMetadata,
+            previousRefreshToken: null,
+            tokenRotatedAt: null,
+            currentTokens: null,
+          } as any,
+        });
+        throw new UnauthorizedException(
+          'Invalid refresh token or token reuse detected. Session invalidated.',
+        );
+      }
+
+      // Valid token: rotate
       const tokens = await this.generateTokens(user);
-      await this.updateRefreshToken(user.id, tokens.refreshToken);
+      const hashedNewToken = await bcrypt.hash(tokens.refreshToken, 10);
+
+      await this.userRepository.update(user.id, {
+        refreshToken: hashedNewToken,
+        profileMetadata: {
+          ...profileMetadata,
+          previousRefreshToken: user.refreshToken,
+          tokenRotatedAt: Date.now(),
+          currentTokens: tokens,
+        } as any,
+      });
 
       return tokens;
     } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }
@@ -123,45 +203,55 @@ export class AuthService {
   // ─── Logout ─────────────────────────────────
 
   async logout(userId: string) {
-    await this.userRepository.update(userId, { refreshToken: '' });
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const profileMetadata = user?.profileMetadata || {};
+    await this.userRepository.update(userId, {
+      refreshToken: '',
+      profileMetadata: {
+        ...profileMetadata,
+        previousRefreshToken: null,
+        tokenRotatedAt: null,
+        currentTokens: null,
+      } as any,
+    });
     return { message: 'Logged out successfully' };
   }
 
   // ─── OAuth Login/Register ───────────────────
 
-  async oauthLogin(provider: string, profile: { id: string; email: string; displayName: string; avatar?: string }) {
+  async oauthLogin(
+    provider: string,
+    profile: { id: string; email: string; displayName: string; avatar?: string },
+  ) {
     let user = await this.userRepository.findOne({
       where: { oauthProvider: provider, oauthId: profile.id },
     });
 
     if (!user) {
       // Check if email already exists
-      user = await this.userRepository.findOne({
+      const existingUser = await this.userRepository.findOne({
         where: { email: profile.email },
       });
 
-      if (user) {
-        // Link OAuth to existing account
-        user.oauthProvider = provider;
-        user.oauthId = profile.id;
-        if (!user.avatarUrl && profile.avatar) {
-          user.avatarUrl = profile.avatar;
-        }
-        await this.userRepository.save(user);
-      } else {
-        // Create new user via OAuth
-        const username = await this.generateUniqueUsername(profile.displayName);
-        user = this.userRepository.create({
-          username,
-          email: profile.email,
-          oauthProvider: provider,
-          oauthId: profile.id,
-          avatarUrl: profile.avatar,
-          rating: 1200,
-          problemsSolved: 0,
-        });
-        user = await this.userRepository.save(user);
+      if (existingUser) {
+        // Prevent dangling OAuth auto-linking: Require explicit login first
+        throw new ConflictException(
+          'An account with this email address already exists. Please log in with your credentials to link external authentication providers.',
+        );
       }
+
+      // Create new user via OAuth
+      const username = await this.generateUniqueUsername(profile.displayName);
+      user = this.userRepository.create({
+        username,
+        email: profile.email,
+        oauthProvider: provider,
+        oauthId: profile.id,
+        avatarUrl: profile.avatar,
+        rating: 1200,
+        problemsSolved: 0,
+      });
+      user = await this.userRepository.save(user);
     }
 
     const tokens = await this.generateTokens(user);
@@ -213,7 +303,17 @@ export class AuthService {
 
   private async updateRefreshToken(userId: string, refreshToken: string) {
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-    await this.userRepository.update(userId, { refreshToken: hashedRefreshToken });
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const profileMetadata = user?.profileMetadata || {};
+    await this.userRepository.update(userId, {
+      refreshToken: hashedRefreshToken,
+      profileMetadata: {
+        ...profileMetadata,
+        previousRefreshToken: null,
+        tokenRotatedAt: null,
+        currentTokens: null,
+      } as any,
+    });
   }
 
   private sanitizeUser(user: User) {

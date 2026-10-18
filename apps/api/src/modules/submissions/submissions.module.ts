@@ -10,12 +10,14 @@ import { ContestsModule } from '../contests/contests.module';
 import { MinioService } from '../../common/services/minio.service';
 import { GeminiService } from '../../common/services/gemini.service';
 import { MongodbLoggerService } from '../../common/services/mongodb-logger.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Submission]),
     ProblemsModule,
     ContestsModule,
+    AuthModule,
   ],
   controllers: [SubmissionsController],
   providers: [

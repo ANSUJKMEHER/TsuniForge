@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,11 +10,13 @@ import { Company } from '../../database/entities/company.entity';
 import { Assessment } from '../../database/entities/assessment.entity';
 import { AssessmentCandidate, CandidateStatusEnum } from '../../database/entities/assessment-candidate.entity';
 import { User } from '../../database/entities/user.entity';
+import * as crypto from 'crypto';
 import { 
   CreateCompanyDto, 
   CreateAssessmentDto, 
   AddCandidateDto,
-  ReportCheatEventDto 
+  ReportCheatEventDto,
+  SubmitAssessmentDto,
 } from './dto/assessment.dto';
 
 @Injectable()
@@ -32,8 +35,15 @@ export class AssessmentsService {
   // ─── Company Management ─────────────────────
 
   async createCompany(dto: CreateCompanyDto, adminUserId: string) {
+    const domain =
+      dto.domain ||
+      (dto.website
+        ? dto.website.replace(/^https?:\/\//i, '').split('/')[0]
+        : `${dto.name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`);
+
     const company = this.companyRepo.create({
       ...dto,
+      domain,
       adminUserId,
     });
     return this.companyRepo.save(company);
@@ -57,6 +67,7 @@ export class AssessmentsService {
     const assessment = new Assessment();
     assessment.companyId = dto.companyId;
     assessment.title = dto.title;
+    assessment.inviteCode = crypto.randomBytes(4).toString('hex').toUpperCase();
     assessment.durationMinutes = dto.durationMinutes;
     assessment.startTime = new Date(dto.validFrom);
     assessment.endTime = new Date(dto.validUntil);
@@ -80,7 +91,12 @@ export class AssessmentsService {
     return assessment;
   }
 
-  async getCompanyAssessments(companyId: string) {
+  async getCompanyAssessments(companyId: string, userId?: string, role?: string) {
+    const company = await this.getCompany(companyId);
+    if (role !== 'admin' && userId && company.adminUserId !== userId) {
+      throw new ForbiddenException('Not authorized to access assessments for this company');
+    }
+
     return this.assessmentRepo.find({
       where: { companyId },
       order: { createdAt: 'DESC' },
@@ -103,6 +119,7 @@ export class AssessmentsService {
     const candidate = this.candidateRepo.create({
       assessmentId,
       userId: dto.userId,
+      email: dto.email || user.email,
       status: CandidateStatusEnum.INVITED,
     });
 
@@ -162,18 +179,49 @@ export class AssessmentsService {
     const candidate = await this.getCandidateSession(assessmentId, userId);
     
     if (candidate.status !== CandidateStatusEnum.STARTED) {
-      throw new ForbiddenException('Can only report events while in progress');
+      if (candidate.status === CandidateStatusEnum.INVITED) {
+        candidate.status = CandidateStatusEnum.STARTED;
+        candidate.startedAt = new Date();
+      } else {
+        throw new ForbiddenException('Can only report events while in progress');
+      }
     }
 
     // Increment cheat flags and log event
     const currentFlags = candidate.proctoringEvents || [];
     currentFlags.push({
-      timestamp: new Date().toISOString(),
+      timestamp: dto.timestamp || new Date().toISOString(),
       type: dto.eventType,
       metadata: dto.metadata,
     });
 
     candidate.proctoringEvents = currentFlags;
+    return this.candidateRepo.save(candidate);
+  }
+
+  async submitAssessment(assessmentId: string, userId: string, dto: SubmitAssessmentDto) {
+    const candidate = await this.getCandidateSession(assessmentId, userId);
+
+    if (candidate.status === CandidateStatusEnum.COMPLETED) {
+      throw new BadRequestException('Assessment has already been completed');
+    }
+
+    if (candidate.assessment?.endTime && new Date(candidate.assessment.endTime) < new Date()) {
+      throw new BadRequestException('Assessment deadline has expired');
+    }
+
+    candidate.status = CandidateStatusEnum.COMPLETED;
+    candidate.completedAt = new Date();
+
+    const currentEvents = candidate.proctoringEvents || [];
+    currentEvents.push({
+      type: 'assessment_submission',
+      timestamp: new Date().toISOString(),
+      answersCount: dto.answers ? dto.answers.length : 0,
+      answers: dto.answers,
+    });
+    candidate.proctoringEvents = currentEvents;
+
     return this.candidateRepo.save(candidate);
   }
 }
