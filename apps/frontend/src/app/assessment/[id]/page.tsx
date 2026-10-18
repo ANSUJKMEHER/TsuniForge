@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
@@ -197,28 +196,6 @@ export default function AssessmentWorkspace() {
     }
   }, [assessment?.endTime, candidate?.startedAt, assessment?.durationMinutes]);
 
-  // Countdown timer logic
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      if (!isSubmitted && !hasAutoSubmittedRef.current) {
-        hasAutoSubmittedRef.current = true;
-        alert("Time is up! Auto-submitting your assessment.");
-        handleSubmit();
-      }
-      return;
-    }
-    const timer = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return t - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [timeLeft, isSubmitted]);
-
   const formatTime = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds < 0) return "00:00:00";
     const h = Math.floor(seconds / 3600);
@@ -260,6 +237,33 @@ export default function AssessmentWorkspace() {
       setIsSubmitting(false);
     }
   };
+
+  const handleSubmitRef = useRef(handleSubmit);
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit;
+  });
+
+  // Countdown timer logic
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      if (!isSubmitted && !hasAutoSubmittedRef.current) {
+        hasAutoSubmittedRef.current = true;
+        alert("Time is up! Auto-submitting your assessment.");
+        handleSubmitRef.current();
+      }
+      return;
+    }
+    const timer = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft, isSubmitted]);
 
   return (
     <div className="h-screen flex flex-col bg-surface-950 overflow-hidden">

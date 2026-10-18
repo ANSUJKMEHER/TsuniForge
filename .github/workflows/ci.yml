@@ -81,6 +81,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache-dependency-path: apps/judge/go.sum
 
       - name: Go tests
         run: cd apps/judge && go test ./...

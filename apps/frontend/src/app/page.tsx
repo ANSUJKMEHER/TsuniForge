@@ -9,7 +9,6 @@ import { useAuthStore } from "@/stores/auth.store";
 
 function Navbar() {
   const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
 
   const { user, isAuthenticated, logout } = useAuthStore();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
@@ -45,7 +45,6 @@ export default function ProblemWorkspace() {
   const params = useParams();
   const slug = params.slug as string;
   const { accessToken, isAuthenticated, user } = useAuthStore();
-  const wsRef = useRef<WebSocket | null>(null);
   const editorRef = useRef<any>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -304,7 +303,7 @@ export default function ProblemWorkspace() {
                 {problem.testCases?.length > 0 && (
                   <div className="mt-10">
                     <h3 className="text-lg font-semibold text-white mb-4">Sample Test Cases</h3>
-                    {problem.testCases.map((tc: any, idx: number) => (
+                    {problem.testCases.map((tc: any) => (
                       <div key={tc.id} className="mb-6 bg-surface-950 rounded-xl border border-white/5 p-4">
                         <div className="mb-3">
                           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Input</div>

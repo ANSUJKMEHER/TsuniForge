@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { io, Socket } from "socket.io-client";
+import { io } from "socket.io-client";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
 
@@ -13,7 +13,6 @@ export default function LeaderboardPage() {
   const contestId = params.id as string;
   const { accessToken } = useAuthStore();
   const [liveLeaderboard, setLiveLeaderboard] = useState<any[]>([]);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
   const { data: contestData } = useQuery({
@@ -63,8 +62,6 @@ export default function LeaderboardPage() {
         setLiveLeaderboard(data.rankings);
       }
     });
-
-    setSocket(newSocket);
 
     return () => {
       newSocket.emit("leave_contest", { contestId });
