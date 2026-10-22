@@ -23,11 +23,22 @@ function WorkspaceNavbar() {
       </div>
       <div className="flex items-center gap-3">
         {isAuthenticated && user ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-xs font-bold text-white">
-              {user.username?.charAt(0).toUpperCase() || "U"}
+          <div className="flex items-center gap-2">
+            {user.role === "admin" && (
+              <Link
+                href="/admin/problems"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-semibold hover:bg-amber-500/20 transition-all shadow-sm"
+              >
+                <span>👑</span>
+                <span>Admin</span>
+              </Link>
+            )}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-xs font-bold text-white">
+                {user.username?.charAt(0).toUpperCase() || "U"}
+              </div>
+              <span className="text-sm text-slate-300 font-medium">{user.username}</span>
             </div>
-            <span className="text-sm text-slate-300 font-medium">{user.username}</span>
           </div>
         ) : (
           <Link href="/login" className="btn-primary text-xs px-4 py-2 rounded-lg">
@@ -59,6 +70,8 @@ export default function ProblemWorkspace() {
   const code = codeByLanguage[language] ?? STARTER_TEMPLATES[language] ?? "";
 
   const [output, setOutput] = useState("");
+  const [customInput, setCustomInput] = useState("");
+  const [consoleTab, setConsoleTab] = useState<"output" | "customInput">("output");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"description" | "submissions">("description");
   const [selectedSubmission, setSelectedSubmission] = useState<any | null>(null);
@@ -122,18 +135,27 @@ export default function ProblemWorkspace() {
     }
   }, [activeTab, isAuthenticated, refetchSubmissions]);
 
+  useEffect(() => {
+    if (problem?.testCases?.length > 0 && !customInput) {
+      setCustomInput(problem.testCases[0].input || "");
+    }
+  }, [problem, customInput]);
+
   const handleRun = async () => {
     if (!problem) return;
     if (!isAuthenticated || !accessToken) {
-      setOutput("⚠ Please sign in to run code.");
+      setOutput("⚠ Please sign in or use a 1-click Demo Role at /login to run code.");
+      setConsoleTab("output");
       return;
     }
     setIsSubmitting(true);
-    setOutput("Running code against sample test cases...");
+    setConsoleTab("output");
+    setOutput("⏳ Executing code against testcase in sandbox...");
 
     try {
-      const result = await api.runCode(problem.id, language, code, "", accessToken);
-      setOutput(result?.data?.output || "No output returned.");
+      const inputToUse = customInput || problem.testCases?.[0]?.input || "";
+      const result = await api.runCode(problem.id, language, code, inputToUse, accessToken);
+      setOutput(result?.data?.output || "Program executed successfully.\n(No output produced)");
     } catch (err: any) {
       setOutput(`Error: ${err.message}`);
     } finally {
@@ -495,28 +517,79 @@ export default function ProblemWorkspace() {
 
           {/* Console / Output Area */}
           <div className="h-64 border-t border-white/5 bg-surface-950 flex flex-col shrink-0">
-            <div className="h-10 border-b border-white/5 px-4 flex items-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Console Output
+            <div className="h-10 border-b border-white/5 px-4 flex items-center justify-between bg-surface-900/40">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setConsoleTab("output")}
+                  className={`text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
+                    consoleTab === "output"
+                      ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Execution Output
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConsoleTab("customInput")}
+                  className={`text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
+                    consoleTab === "customInput"
+                      ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Custom Testcase (stdin)
+                </button>
+              </div>
+
+              {consoleTab === "output" && output && (
+                <button
+                  onClick={() => setOutput("")}
+                  className="text-[11px] text-slate-500 hover:text-slate-300"
+                >
+                  Clear Console
+                </button>
+              )}
             </div>
-            <div className="flex-1 p-4 overflow-y-auto font-mono text-sm whitespace-pre-wrap text-slate-300">
-              {output || "Run your code to see the output here."}
-            </div>
+
+            {consoleTab === "output" ? (
+              <div className="flex-1 p-3.5 overflow-y-auto font-mono text-xs leading-relaxed whitespace-pre-wrap text-slate-300 select-text">
+                {output || "Run code against your custom testcase or submit for full test-suite evaluation."}
+              </div>
+            ) : (
+              <div className="flex-1 p-2 flex flex-col">
+                <textarea
+                  value={customInput}
+                  onChange={(e) => setCustomInput(e.target.value)}
+                  placeholder="Enter custom input (stdin) parameters here..."
+                  className="flex-1 bg-surface-900/60 p-2.5 rounded-lg border border-white/5 font-mono text-xs leading-relaxed text-slate-200 outline-none resize-none"
+                  spellCheck={false}
+                />
+              </div>
+            )}
+
             {/* Action Bar */}
-            <div className="h-14 border-t border-white/5 px-4 flex items-center justify-end gap-3 shrink-0 bg-surface-900/50">
-              <button
-                className="btn-secondary px-6 py-2 text-sm rounded-lg"
-                onClick={handleRun}
-                disabled={isSubmitting}
-              >
-                Run Code
-              </button>
-              <button
-                className="btn-primary px-6 py-2 text-sm rounded-lg shadow-lg shadow-emerald-500/20"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-              >
-                Submit
-              </button>
+            <div className="h-14 border-t border-white/5 px-4 flex items-center justify-between shrink-0 bg-surface-900/50">
+              <div className="text-[11px] text-slate-500 hidden sm:block">
+                Time limit: {problem?.timeLimitMs || 2000}ms &bull; Memory: {problem?.memoryLimitMb || 256}MB
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  className="btn-secondary px-5 py-2 text-xs font-semibold rounded-lg"
+                  onClick={handleRun}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Running..." : "Run Code"}
+                </button>
+                <button
+                  className="btn-primary px-6 py-2 text-xs font-semibold rounded-lg shadow-lg shadow-emerald-500/20"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Submitting..." : "Submit Solution"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

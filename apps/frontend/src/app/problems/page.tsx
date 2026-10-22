@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
+import { Plus } from "lucide-react";
 
-// ─── Navbar (Reused or Simplified for now) ─────
+// ─── Navbar ───────────────────────────────────
 function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
 
@@ -30,6 +31,15 @@ function Navbar() {
         
         {isAuthenticated && user ? (
           <div className="flex items-center gap-3">
+            {user.role === "admin" && (
+              <Link
+                href="/admin/problems"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-semibold hover:bg-amber-500/20 transition-all shadow-sm"
+              >
+                <span>👑</span>
+                <span>Admin Studio</span>
+              </Link>
+            )}
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-xs font-bold text-white">
                 {user.username?.charAt(0).toUpperCase() || "U"}
@@ -60,6 +70,7 @@ function Navbar() {
 // ─── Problem List Page ────────────────────────
 
 export default function ProblemsPage() {
+  const { user } = useAuthStore();
   const [difficulty, setDifficulty] = useState<string>("");
   const [search, setSearch] = useState<string>("");
 
@@ -74,11 +85,23 @@ export default function ProblemsPage() {
 
       <main className="flex-1 mx-auto max-w-7xl px-6 py-10 w-full">
         {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold text-white mb-2">Problem Set</h1>
-          <p className="text-slate-400 text-sm">
-            Master your coding skills with our curated list of algorithmic challenges.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">Problem Set</h1>
+            <p className="text-slate-400 text-sm">
+              Master your coding skills with our curated list of algorithmic challenges.
+            </p>
+          </div>
+
+          {user?.role === "admin" && (
+            <Link
+              href="/admin/problems/new"
+              className="btn-primary flex items-center gap-2 text-xs py-2 px-3.5 self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Author Problem</span>
+            </Link>
+          )}
         </div>
 
         {/* Filters */}
@@ -179,7 +202,7 @@ export default function ProblemsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-slate-400">
-                      {problem.acceptanceRate}%
+                      {Math.round(problem.acceptanceRate || 0)}%
                     </td>
                   </tr>
                 ))
