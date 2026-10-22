@@ -22,12 +22,12 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
+
     try {
       const response = await api.login(email, password);
       if (response && response.data && response.data.user) {
         setAuth(response.data.user, response.data.accessToken, response.data.refreshToken);
-        router.push(redirect);
+        router.push(response.data.user.role === "admin" ? "/admin/problems" : redirect);
       }
     } catch (err: any) {
       setError(err.message || "Failed to log in");
@@ -36,8 +36,27 @@ function LoginForm() {
     }
   };
 
+  const handleQuickLogin = async (demoEmail: string, demoPass: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPass);
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await api.login(demoEmail, demoPass);
+      if (response && response.data && response.data.user) {
+        setAuth(response.data.user, response.data.accessToken, response.data.refreshToken);
+        router.push(response.data.user.role === "admin" ? "/admin/problems" : redirect);
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to log in with demo account");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen flex items-center justify-center relative overflow-hidden">
+    <main className="min-h-screen flex items-center justify-center relative overflow-hidden py-12">
       {/* Background */}
       <div className="absolute inset-0 bg-grid" />
       <div className="absolute top-1/3 left-1/4 w-96 h-96 bg-emerald-500/8 rounded-full blur-[120px]" />
@@ -45,7 +64,7 @@ function LoginForm() {
 
       <div className="relative z-10 w-full max-w-md px-6">
         {/* Logo */}
-        <Link href="/" className="flex items-center justify-center gap-2 mb-10">
+        <Link href="/" className="flex items-center justify-center gap-2 mb-8">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-emerald-500/20">
             T
           </div>
@@ -56,12 +75,51 @@ function LoginForm() {
 
         {/* Card */}
         <div className="glass rounded-2xl p-8 glow-blue">
-          <h1 className="text-2xl font-bold text-white text-center mb-2">
+          <h1 className="text-2xl font-bold text-white text-center mb-1">
             Welcome Back
           </h1>
-          <p className="text-slate-400 text-center text-sm mb-8">
+          <p className="text-slate-400 text-center text-sm mb-6">
             Log in to continue your coding journey
           </p>
+
+          {/* Quick Demo Login Pills */}
+          <div className="mb-6 p-3.5 rounded-xl bg-white/[0.03] border border-white/10">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                ⚡ Quick Demo Roles
+              </span>
+              <span className="text-[11px] text-slate-500">1-click login</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickLogin("admin@tsuniforge.com", "Admin123!")}
+                disabled={loading}
+                className="py-2 px-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 text-amber-300 text-xs font-medium transition-all text-center flex flex-col items-center gap-0.5 group disabled:opacity-50"
+              >
+                <span className="text-sm">👑</span>
+                <span>Admin</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin("user@tsuniforge.com", "User123!")}
+                disabled={loading}
+                className="py-2 px-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-300 text-xs font-medium transition-all text-center flex flex-col items-center gap-0.5 group disabled:opacity-50"
+              >
+                <span className="text-sm">💻</span>
+                <span>Coder</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin("company@tsuniforge.com", "Company123!")}
+                disabled={loading}
+                className="py-2 px-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 text-blue-300 text-xs font-medium transition-all text-center flex flex-col items-center gap-0.5 group disabled:opacity-50"
+              >
+                <span className="text-sm">🏢</span>
+                <span>Company</span>
+              </button>
+            </div>
+          </div>
 
           {/* OAuth Buttons */}
           <div className="grid grid-cols-2 gap-3 mb-6">
@@ -103,7 +161,7 @@ function LoginForm() {
           {/* Divider */}
           <div className="flex items-center gap-4 mb-6">
             <div className="flex-1 h-px bg-white/10" />
-            <span className="text-xs text-slate-500 uppercase">or</span>
+            <span className="text-xs text-slate-500 uppercase">or sign in with password</span>
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
@@ -220,4 +278,3 @@ export default function LoginPage() {
     </Suspense>
   );
 }
-

@@ -52,6 +52,15 @@ function Navbar() {
 
         {isAuthenticated && user ? (
           <div className="flex items-center gap-3">
+            {user.role === "admin" && (
+              <Link
+                href="/admin/problems"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-semibold hover:bg-amber-500/20 transition-all shadow-sm"
+              >
+                <span>👑</span>
+                <span>Admin Studio</span>
+              </Link>
+            )}
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/5">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center text-xs font-bold text-white">
                 {user.username?.charAt(0).toUpperCase() || "U"}
