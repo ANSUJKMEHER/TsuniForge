@@ -11,10 +11,8 @@ import {
   Copy,
   Check,
   Trash2,
-  Sparkles,
   ArrowRight,
   Terminal,
-  Code2,
   Clock,
 } from "lucide-react";
 

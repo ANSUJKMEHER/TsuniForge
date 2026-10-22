@@ -12,13 +12,8 @@ import {
   TrendingUp,
   ExternalLink,
   Plus,
-  Eye,
   LogOut,
-  Building,
   CheckCircle2,
-  XCircle,
-  Clock,
-  Sparkles,
   Search,
 } from "lucide-react";
 
@@ -31,7 +26,7 @@ export default function CompanyDashboard() {
   const [newDuration, setNewDuration] = useState(60);
 
   // Mock candidates stream demonstrating proctoring telemetry intelligence
-  const [candidates, setCandidates] = useState([
+  const [candidates] = useState([
     {
       id: "c-101",
       name: "Alex Rivera",

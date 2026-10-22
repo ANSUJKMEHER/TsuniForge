@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import {
-  Code2,
   PlusCircle,
   ListOrdered,
   LogOut,

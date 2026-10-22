@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Terminal, ArrowLeft, Home, Code2, Trophy } from "lucide-react";
+import { Terminal, Home, Code2, Trophy } from "lucide-react";
 
 export default function NotFound() {
   return (

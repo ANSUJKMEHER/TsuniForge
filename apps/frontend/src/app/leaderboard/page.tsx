@@ -7,14 +7,8 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
 import {
   Trophy,
-  Medal,
-  Crown,
   Search,
   Flame,
-  CheckCircle,
-  Sparkles,
-  ArrowRight,
-  TrendingUp,
 } from "lucide-react";
 
 function LeaderboardNavbar() {

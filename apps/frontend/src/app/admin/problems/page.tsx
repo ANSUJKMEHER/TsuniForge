@@ -8,15 +8,12 @@ import { useAuthStore } from "@/stores/auth.store";
 import {
   Plus,
   Search,
-  Filter,
   Trash2,
   ExternalLink,
   Code2,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
   Layers,
-  Sparkles,
   RefreshCw,
 } from "lucide-react";
 

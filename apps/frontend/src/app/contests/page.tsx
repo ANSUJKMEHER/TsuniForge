@@ -10,13 +10,34 @@ import {
   Calendar,
   Clock,
   Users,
-  Flame,
   ArrowRight,
-  ShieldCheck,
   CheckCircle2,
-  Sparkles,
   Zap,
 } from "lucide-react";
+
+// Featured sample contests fallback
+const SAMPLE_ROUNDS = [
+  {
+    id: "sample-weekly-1",
+    title: "TsuniForge Biweekly Contest 42",
+    description: "Compete with algorithmic coders worldwide across 4 challenging algorithmic problems.",
+    status: "upcoming",
+    startTime: "2026-11-01T14:00:00.000Z",
+    endTime: "2026-11-01T16:00:00.000Z",
+    rules: "ICPC Scoring (Penalty 20m)",
+    participantsCount: 342,
+  },
+  {
+    id: "sample-sprint-2",
+    title: "Speedrunner Sprint #14",
+    description: "Fast-paced algorithmic duel focusing on dynamic programming and graph structures.",
+    status: "upcoming",
+    startTime: "2026-11-05T18:00:00.000Z",
+    endTime: "2026-11-05T19:30:00.000Z",
+    rules: "Speed + Accuracy",
+    participantsCount: 189,
+  },
+];
 
 // ─── Shared Navbar ────────────────────────────
 function Navbar() {
@@ -121,30 +142,6 @@ export default function ContestsPage() {
     if (filter === "all") return true;
     return c.status === filter;
   });
-
-  // Featured sample contests if database has no active seed
-  const SAMPLE_ROUNDS = [
-    {
-      id: "sample-weekly-1",
-      title: "TsuniForge Biweekly Contest 42",
-      description: "Compete with algorithmic coders worldwide across 4 challenging algorithmic problems.",
-      status: "upcoming",
-      startTime: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-      endTime: new Date(Date.now() + 26 * 3600 * 1000).toISOString(),
-      rules: "ICPC Scoring (Penalty 20m)",
-      participantsCount: 342,
-    },
-    {
-      id: "sample-sprint-2",
-      title: "Speedrunner Sprint #14",
-      description: "Fast-paced algorithmic duel focusing on dynamic programming and graph structures.",
-      status: "upcoming",
-      startTime: new Date(Date.now() + 72 * 3600 * 1000).toISOString(),
-      endTime: new Date(Date.now() + 74 * 3600 * 1000).toISOString(),
-      rules: "Speed + Accuracy",
-      participantsCount: 189,
-    },
-  ];
 
   const displayList = contests.length > 0 ? filteredContests : SAMPLE_ROUNDS;
 

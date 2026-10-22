@@ -16,7 +16,6 @@ import {
   Copy,
   Eye,
   Edit3,
-  HelpCircle,
   Cpu,
   Clock,
   Tag,
