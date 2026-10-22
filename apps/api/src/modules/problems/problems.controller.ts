@@ -33,7 +33,7 @@ export class ProblemsController {
   @ApiOperation({ summary: 'List problems with filtering and pagination' })
   @ApiResponse({ status: 200, description: 'Paginated problem list' })
   async findAll(@Query() query: ProblemQueryDto) {
-    const result = await this.problemsService.findAll(query);
+    const result = await this.problemsService.findAll(query, query.all);
     return { success: true, ...result };
   }
 

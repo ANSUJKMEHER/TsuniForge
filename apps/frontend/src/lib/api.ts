@@ -180,6 +180,7 @@ class ApiClient {
       difficulty?: string;
       tags?: string[];
       search?: string;
+      all?: boolean;
     } = {},
     token?: string
   ) {
@@ -189,6 +190,7 @@ class ApiClient {
     if (params.difficulty) searchParams.set("difficulty", params.difficulty);
     if (params.tags) searchParams.set("tags", params.tags.join(","));
     if (params.search) searchParams.set("search", params.search);
+    if (params.all) searchParams.set("all", "true");
 
     return this.request<any>(
       `/api/v1/problems?${searchParams.toString()}`,
@@ -198,6 +200,39 @@ class ApiClient {
 
   async getProblem(slug: string, token?: string) {
     return this.request<any>(`/api/v1/problems/${slug}`, { token });
+  }
+
+  async createProblem(
+    data: {
+      title: string;
+      descriptionMd: string;
+      difficulty: string;
+      tags: string[];
+      timeLimitMs?: number;
+      memoryLimitMb?: number;
+      isPublished?: boolean;
+      testCases: Array<{
+        input: string;
+        expectedOutput: string;
+        isSample: boolean;
+        orderIndex?: number;
+        scoreWeight?: number;
+      }>;
+    },
+    token: string
+  ) {
+    return this.request<any>("/api/v1/problems", {
+      method: "POST",
+      body: JSON.stringify(data),
+      token,
+    });
+  }
+
+  async deleteProblem(id: string, token: string) {
+    return this.request<any>(`/api/v1/problems/${id}`, {
+      method: "DELETE",
+      token,
+    });
   }
 
   // ─── Submissions ──────────────────────────

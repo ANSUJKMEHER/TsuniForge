@@ -1,6 +1,8 @@
 import { DataSource } from 'typeorm';
 import { Problem, DifficultyEnum } from './entities/problem.entity';
 import { TestCase } from './entities/test-case.entity';
+import { UserRoleEnum } from './entities/user.entity';
+import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
@@ -261,6 +263,62 @@ async function seed() {
   const problemRepo = dataSource.getRepository('Problem');
   const testCaseRepo = dataSource.getRepository('TestCase');
 
+  // ─── Seed Default Users for Testing ───────────────────────────
+  console.log('Seeding default role accounts...');
+  
+  const adminPasswordHash = await bcrypt.hash('Admin123!', 10);
+  const userPasswordHash = await bcrypt.hash('User123!', 10);
+  const companyPasswordHash = await bcrypt.hash('Company123!', 10);
+
+  // 1. Admin account
+  let adminUser = await userRepo.findOne({ where: { email: 'admin@tsuniforge.com' } });
+  if (!adminUser) {
+    adminUser = userRepo.create({
+      username: 'admin',
+      email: 'admin@tsuniforge.com',
+      passwordHash: adminPasswordHash,
+      role: UserRoleEnum.ADMIN,
+      rating: 3000,
+      title: 'Platform Administrator',
+    });
+    await userRepo.save(adminUser);
+    console.log('  ✓ Seeded Admin user: admin@tsuniforge.com / Admin123!');
+  } else {
+    adminUser.role = UserRoleEnum.ADMIN;
+    adminUser.passwordHash = adminPasswordHash;
+    await userRepo.save(adminUser);
+  }
+
+  // 2. Normal user account
+  let normalUser = await userRepo.findOne({ where: { email: 'user@tsuniforge.com' } });
+  if (!normalUser) {
+    normalUser = userRepo.create({
+      username: 'alex_coder',
+      email: 'user@tsuniforge.com',
+      passwordHash: userPasswordHash,
+      role: UserRoleEnum.USER,
+      rating: 1550,
+      title: 'Grandmaster Contender',
+    });
+    await userRepo.save(normalUser);
+    console.log('  ✓ Seeded Normal user: user@tsuniforge.com / User123!');
+  }
+
+  // 3. Company account
+  let companyUser = await userRepo.findOne({ where: { email: 'company@tsuniforge.com' } });
+  if (!companyUser) {
+    companyUser = userRepo.create({
+      username: 'techcorp_hr',
+      email: 'company@tsuniforge.com',
+      passwordHash: companyPasswordHash,
+      role: UserRoleEnum.COMPANY,
+      rating: 1200,
+      title: 'Technical Recruiter',
+    });
+    await userRepo.save(companyUser);
+    console.log('  ✓ Seeded Company user: company@tsuniforge.com / Company123!');
+  }
+
   // Create a system user to own the problems
   let systemUser = await userRepo.findOne({ where: { email: 'system@tsuniforge.com' } });
   if (!systemUser) {
@@ -269,6 +327,7 @@ async function seed() {
       username: 'System',
       email: 'system@tsuniforge.com',
       passwordHash: 'not_a_real_password',
+      role: UserRoleEnum.ADMIN,
       rating: 4000,
       title: 'System Admin',
     });

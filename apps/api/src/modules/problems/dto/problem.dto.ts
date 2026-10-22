@@ -10,7 +10,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateTestCaseDto {
@@ -69,6 +69,11 @@ export class CreateProblemDto {
   @IsInt()
   @Min(16)
   memoryLimitMb?: number;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
 
   @ApiProperty({ type: [CreateTestCaseDto] })
   @IsArray()
@@ -146,4 +151,10 @@ export class ProblemQueryDto {
   @Min(1)
   @Type(() => Number)
   limit?: number = 20;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  all?: boolean;
 }

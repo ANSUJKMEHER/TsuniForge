@@ -34,7 +34,7 @@ export class ProblemsService {
         timeLimitMs: dto.timeLimitMs || 2000,
         memoryLimitMb: dto.memoryLimitMb || 256,
         createdBy: userId,
-        isPublished: false,
+        isPublished: dto.isPublished ?? true,
       });
 
       const savedProblem = await manager.save(problem);
