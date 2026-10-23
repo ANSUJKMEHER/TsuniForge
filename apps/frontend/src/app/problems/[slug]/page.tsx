@@ -219,10 +219,10 @@ export default function ProblemWorkspace() {
   }, [activeTab, isAuthenticated, refetchSubmissions]);
 
   useEffect(() => {
-    if (problem?.testCases?.length > 0 && !customInput) {
-      setCustomInput(problem.testCases[0].input || "");
+    if (problem?.testCases?.length > 0) {
+      setCustomInput((prev) => prev || problem.testCases[0].input || "");
     }
-  }, [problem, customInput]);
+  }, [problem?.id]);
 
   const handleRun = async () => {
     if (!problem) return;

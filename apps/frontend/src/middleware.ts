@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
     request.cookies.get("token")?.value;
 
   const isProtectedPath =
-    pathname.startsWith("/company") ||
+    pathname.startsWith("/company/dashboard") ||
     pathname.startsWith("/assessment") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/dashboard");
@@ -26,7 +26,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/company/:path*",
+    "/company/dashboard/:path*",
     "/assessment/:path*",
     "/admin/:path*",
     "/dashboard/:path*",
