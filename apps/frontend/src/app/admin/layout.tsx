@@ -19,7 +19,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout, isHydrated } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -28,12 +28,29 @@ export default function AdminLayout({
     setMounted(true);
   }, []);
 
-  if (!mounted) {
+  // During initial mount and store hydration, render matching skeleton structure (prevent red flash)
+  if (!mounted || !isHydrated) {
     return (
-      <div className="min-h-screen bg-surface-950 flex items-center justify-center">
-        <div className="flex items-center gap-3 text-slate-400">
-          <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm">Loading admin console...</span>
+      <div className="min-h-screen bg-surface-950 flex flex-col">
+        <header className="border-b border-white/5 bg-surface-900/80 backdrop-blur-md h-[61px] flex items-center justify-between px-6 shrink-0">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 animate-pulse" />
+              <div className="w-24 h-4 bg-white/10 rounded animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-28 h-8 rounded-lg bg-white/5 animate-pulse" />
+              <div className="w-32 h-8 rounded-lg bg-white/5 animate-pulse" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="w-28 h-8 rounded-lg bg-white/5 animate-pulse" />
+            <div className="w-20 h-8 rounded-lg bg-white/5 animate-pulse" />
+          </div>
+        </header>
+        <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 py-8 w-full animate-pulse">
+          <div className="h-32 rounded-2xl bg-white/[0.02] border border-white/5 mb-8" />
+          <div className="h-96 rounded-xl bg-white/[0.02] border border-white/5" />
         </div>
       </div>
     );

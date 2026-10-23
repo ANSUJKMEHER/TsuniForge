@@ -10,7 +10,13 @@ import { useAuthStore } from "@/stores/auth.store";
 
 // ─── Navbar for Workspace ────────────────────
 function WorkspaceNavbar() {
-  const { user, isAuthenticated } = useAuthStore();
+  const { user, isAuthenticated, isHydrated } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <nav className="h-14 border-b border-white/5 bg-surface-950 flex items-center justify-between px-4 shrink-0">
       <div className="flex items-center gap-4">
@@ -22,7 +28,9 @@ function WorkspaceNavbar() {
         <span className="font-semibold text-white">Problem Workspace</span>
       </div>
       <div className="flex items-center gap-3">
-        {isAuthenticated && user ? (
+        {!mounted || !isHydrated ? (
+          <div className="h-8 w-28 rounded-lg bg-white/[0.04] border border-white/5 animate-pulse" />
+        ) : isAuthenticated && user ? (
           <div className="flex items-center gap-2">
             {user.role === "admin" && (
               <Link
@@ -47,6 +55,81 @@ function WorkspaceNavbar() {
         )}
       </div>
     </nav>
+  );
+}
+
+// ─── Workspace Skeleton to eliminate loading flicker ────────
+function WorkspaceSkeleton() {
+  return (
+    <div className="h-screen flex flex-col bg-surface-950 overflow-hidden">
+      <WorkspaceNavbar />
+      <main className="flex-1 flex overflow-hidden">
+        {/* Left Pane Skeleton */}
+        <div className="w-1/2 flex flex-col border-r border-white/5 bg-surface-900/30">
+          <div className="flex items-center gap-6 px-6 border-b border-white/5 h-12 shrink-0">
+            <span className="h-full text-sm font-medium border-b-2 border-emerald-500 text-emerald-400 flex items-center">
+              Description
+            </span>
+            <span className="h-full text-sm font-medium border-b-2 border-transparent text-slate-500 flex items-center">
+              Submissions
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6 scrollbar-hide space-y-5 animate-pulse">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-56 bg-white/10 rounded-lg" />
+              <div className="h-6 w-16 bg-white/10 rounded-full" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-6 w-16 bg-white/5 rounded-md" />
+              <div className="h-6 w-20 bg-white/5 rounded-md" />
+              <div className="h-6 w-14 bg-white/5 rounded-md" />
+            </div>
+            <div className="space-y-3 pt-4">
+              <div className="h-4 w-full bg-white/5 rounded" />
+              <div className="h-4 w-11/12 bg-white/5 rounded" />
+              <div className="h-4 w-4/5 bg-white/5 rounded" />
+              <div className="h-4 w-3/4 bg-white/5 rounded" />
+            </div>
+            <div className="mt-8 space-y-3 pt-6 border-t border-white/5">
+              <div className="h-5 w-36 bg-white/10 rounded" />
+              <div className="h-32 w-full bg-white/[0.02] border border-white/5 rounded-xl p-4 space-y-3">
+                <div className="h-3 w-16 bg-white/10 rounded" />
+                <div className="h-8 w-full bg-white/[0.03] rounded" />
+                <div className="h-3 w-28 bg-white/10 rounded" />
+                <div className="h-8 w-full bg-white/[0.03] rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Pane Skeleton */}
+        <div className="w-1/2 flex flex-col bg-[#1e1e1e]">
+          <div className="h-12 border-b border-white/5 flex items-center justify-between px-4 shrink-0 bg-surface-950">
+            <div className="h-7 w-28 bg-white/10 rounded-lg animate-pulse" />
+            <div className="h-7 w-7 bg-white/5 rounded-lg animate-pulse" />
+          </div>
+          <div className="flex-1 p-6 space-y-3 animate-pulse opacity-40">
+            <div className="h-4 w-3/4 bg-white/10 rounded font-mono" />
+            <div className="h-4 w-1/2 bg-white/10 rounded font-mono" />
+            <div className="h-4 w-2/3 bg-white/10 rounded font-mono" />
+            <div className="h-4 w-1/3 bg-white/10 rounded font-mono" />
+            <div className="h-4 w-1/2 bg-white/10 rounded font-mono" />
+          </div>
+          <div className="h-64 border-t border-white/5 bg-surface-950 flex flex-col shrink-0">
+            <div className="h-10 border-b border-white/5 px-4 flex items-center justify-between bg-surface-900/40">
+              <div className="h-4 w-20 bg-white/10 rounded" />
+              <div className="flex gap-2">
+                <div className="h-7 w-16 bg-white/10 rounded-lg" />
+                <div className="h-7 w-20 bg-emerald-500/20 rounded-lg" />
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="h-4 w-40 bg-white/5 rounded animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }
 
@@ -240,11 +323,7 @@ export default function ProblemWorkspace() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-surface-950 flex items-center justify-center text-slate-400">
-        Loading problem...
-      </div>
-    );
+    return <WorkspaceSkeleton />;
   }
 
   if (!problem) {
@@ -511,7 +590,13 @@ export default function ProblemWorkspace() {
                 cursorSmoothCaretAnimation: "on",
                 formatOnPaste: true,
               }}
-              loading={<div className="text-slate-500 text-sm text-center pt-10">Loading Editor...</div>}
+              loading={
+                <div className="p-6 space-y-3 animate-pulse opacity-40">
+                  <div className="h-4 w-3/4 bg-white/10 rounded font-mono" />
+                  <div className="h-4 w-1/2 bg-white/10 rounded font-mono" />
+                  <div className="h-4 w-2/3 bg-white/10 rounded font-mono" />
+                </div>
+              }
             />
           </div>
 

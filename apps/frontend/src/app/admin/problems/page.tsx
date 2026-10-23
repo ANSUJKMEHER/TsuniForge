@@ -150,8 +150,8 @@ export default function AdminProblemsPage() {
             <span>Total Problems</span>
             <Layers className="w-3.5 h-3.5 text-slate-500" />
           </div>
-          <div className="text-2xl font-bold text-white font-mono">
-            {isLoading ? "—" : totalCount}
+          <div className="text-2xl font-bold text-white font-mono h-8 flex items-center">
+            {isLoading ? <div className="h-7 w-10 rounded bg-white/10 animate-pulse" /> : totalCount}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">Active in platform</div>
         </div>
@@ -161,8 +161,8 @@ export default function AdminProblemsPage() {
             <span>Easy</span>
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
           </div>
-          <div className="text-2xl font-bold text-white font-mono">
-            {isLoading ? "—" : easyCount}
+          <div className="text-2xl font-bold text-white font-mono h-8 flex items-center">
+            {isLoading ? <div className="h-7 w-10 rounded bg-white/10 animate-pulse" /> : easyCount}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">Beginner friendly</div>
         </div>
@@ -172,8 +172,8 @@ export default function AdminProblemsPage() {
             <span>Medium</span>
             <span className="w-2 h-2 rounded-full bg-amber-400" />
           </div>
-          <div className="text-2xl font-bold text-white font-mono">
-            {isLoading ? "—" : mediumCount}
+          <div className="text-2xl font-bold text-white font-mono h-8 flex items-center">
+            {isLoading ? <div className="h-7 w-10 rounded bg-white/10 animate-pulse" /> : mediumCount}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">Intermediate level</div>
         </div>
@@ -183,8 +183,8 @@ export default function AdminProblemsPage() {
             <span>Hard</span>
             <span className="w-2 h-2 rounded-full bg-rose-400" />
           </div>
-          <div className="text-2xl font-bold text-white font-mono">
-            {isLoading ? "—" : hardCount}
+          <div className="text-2xl font-bold text-white font-mono h-8 flex items-center">
+            {isLoading ? <div className="h-7 w-10 rounded bg-white/10 animate-pulse" /> : hardCount}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">Advanced challenges</div>
         </div>
@@ -245,14 +245,37 @@ export default function AdminProblemsPage() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-500">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                      <span>Loading problem inventory...</span>
-                    </div>
-                  </td>
-                </tr>
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={`admin-prob-skel-${i}`} className="animate-pulse">
+                    <td className="px-5 py-3.5">
+                      <div className="space-y-1.5">
+                        <div className="h-4 w-40 bg-white/10 rounded" />
+                        <div className="h-3 w-24 bg-white/5 rounded" />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-5 w-16 bg-white/10 rounded-full" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex gap-1.5">
+                        <div className="h-4 w-12 bg-white/5 rounded" />
+                        <div className="h-4 w-14 bg-white/5 rounded" />
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-4 w-10 bg-white/10 rounded" />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="h-4 w-8 bg-white/10 rounded" />
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex justify-end gap-2">
+                        <div className="h-7 w-14 bg-white/5 rounded-lg" />
+                        <div className="h-7 w-14 bg-white/5 rounded-lg" />
+                      </div>
+                    </td>
+                  </tr>
+                ))
               ) : problems.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-12 text-center text-slate-500">

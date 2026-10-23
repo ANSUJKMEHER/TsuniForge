@@ -265,15 +265,35 @@ function LoginForm() {
   );
 }
 
+function LoginSkeleton() {
+  return (
+    <main className="min-h-screen flex items-center justify-center relative overflow-hidden py-12 bg-surface-950">
+      <div className="absolute inset-0 bg-grid opacity-30 pointer-events-none" />
+      <div className="relative z-10 w-full max-w-md px-6">
+        <div className="flex items-center justify-center gap-2 mb-8">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-emerald-500/20">
+            T
+          </div>
+          <span className="text-2xl font-bold gradient-text-brand">TsuniForge</span>
+        </div>
+        <div className="glass rounded-2xl p-8 border border-white/10 animate-pulse">
+          <div className="h-7 w-40 bg-white/10 rounded mx-auto mb-2" />
+          <div className="h-4 w-56 bg-white/5 rounded mx-auto mb-8" />
+          <div className="h-20 bg-white/5 rounded-xl mb-6" />
+          <div className="space-y-4">
+            <div className="h-10 bg-white/5 rounded-lg" />
+            <div className="h-10 bg-white/5 rounded-lg" />
+            <div className="h-10 bg-emerald-500/20 rounded-lg mt-6" />
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-screen flex items-center justify-center relative overflow-hidden">
-          <div className="text-slate-400 text-sm">Loading login...</div>
-        </main>
-      }
-    >
+    <Suspense fallback={<LoginSkeleton />}>
       <LoginForm />
     </Suspense>
   );

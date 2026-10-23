@@ -18,7 +18,12 @@ import {
 
 // ─── Navbar for Playground ────────────────────
 function PlaygroundNavbar() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, isHydrated, logout } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <nav className="h-14 border-b border-white/5 bg-surface-950 flex items-center justify-between px-4 sm:px-6 shrink-0 z-20">
@@ -47,7 +52,11 @@ function PlaygroundNavbar() {
           <ArrowRight className="w-3 h-3" />
         </Link>
 
-        {isAuthenticated && user ? (
+        {!mounted || !isHydrated ? (
+          <div className="flex items-center gap-2 border-l border-white/10 pl-4">
+            <div className="h-8 w-24 rounded-lg bg-white/[0.04] border border-white/5 animate-pulse" />
+          </div>
+        ) : isAuthenticated && user ? (
           <div className="flex items-center gap-3 border-l border-white/10 pl-4">
             {user.role === "admin" && (
               <Link

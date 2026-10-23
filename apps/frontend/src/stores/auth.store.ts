@@ -16,8 +16,10 @@ export interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
+  isHydrated: boolean;
 
   // Actions
+  setHydrated: (isHydrated: boolean) => void;
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
   updateUser: (updates: Partial<User>) => void;
@@ -43,22 +45,39 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[3]) : null;
 }
 
+function getInitialUser(): User | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("tsuniforge-auth");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.user || null;
+  } catch {
+    return null;
+  }
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      user: null,
+      user: getInitialUser(),
       accessToken: getCookie("accessToken"),
       refreshToken: getCookie("refreshToken"),
       isAuthenticated: !!getCookie("accessToken"),
+      isHydrated: typeof window !== "undefined",
+
+      setHydrated: (isHydrated) => set({ isHydrated }),
 
       setAuth: (user, accessToken, refreshToken) => {
         setCookie("accessToken", accessToken, 1);
         setCookie("refreshToken", refreshToken, 7);
+        setCookie("userRole", user.role, 7);
         set({
           user,
           accessToken,
           refreshToken,
           isAuthenticated: true,
+          isHydrated: true,
         });
       },
 
@@ -80,6 +99,10 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () => {
         removeCookie("accessToken");
         removeCookie("refreshToken");
+        removeCookie("userRole");
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("tsuniforge-auth");
+        }
         set({
           user: null,
           accessToken: null,
@@ -91,6 +114,10 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         removeCookie("accessToken");
         removeCookie("refreshToken");
+        removeCookie("userRole");
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("tsuniforge-auth");
+        }
         set({
           user: null,
           accessToken: null,
@@ -106,6 +133,11 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.setHydrated(true);
+        }
+      },
     }
   )
 );

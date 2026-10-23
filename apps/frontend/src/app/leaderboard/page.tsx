@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -12,7 +12,12 @@ import {
 } from "lucide-react";
 
 function LeaderboardNavbar() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, isHydrated, logout } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <nav className="h-16 border-b border-white/5 bg-surface-950/80 backdrop-blur-md flex items-center justify-between px-4 sm:px-8 shrink-0 sticky top-0 z-50">
@@ -53,7 +58,11 @@ function LeaderboardNavbar() {
         </Link>
       </div>
 
-      {isAuthenticated && user ? (
+      {!mounted || !isHydrated ? (
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-28 rounded-lg bg-white/[0.04] border border-white/5 animate-pulse" />
+        </div>
+      ) : isAuthenticated && user ? (
         <div className="flex items-center gap-3">
           {user.role === "admin" && (
             <Link
@@ -151,98 +160,118 @@ export default function LeaderboardPage() {
         </div>
 
         {/* Top 3 Podium Showcase */}
-        {!search && topThree.length >= 3 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 items-end">
-            {/* Rank 2 (Silver) */}
-            <div className="glass rounded-2xl p-6 border border-slate-400/20 relative overflow-hidden order-2 md:order-1 text-center bg-gradient-to-b from-slate-400/5 to-transparent">
-              <div className="w-12 h-12 mx-auto rounded-full bg-slate-300/10 border border-slate-300/30 flex items-center justify-center text-xl mb-3 shadow-lg">
-                🥈
+        {!search && (
+          isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 items-end">
+              <div className="glass rounded-2xl p-6 border border-white/5 h-64 animate-pulse flex flex-col items-center justify-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-white/10" />
+                <div className="h-4 w-24 bg-white/10 rounded" />
+                <div className="h-3 w-16 bg-white/5 rounded" />
               </div>
-              <div className="text-xs font-mono font-bold text-slate-300 mb-1">
-                RANK #2
+              <div className="glass rounded-2xl p-7 border border-white/5 h-72 animate-pulse flex flex-col items-center justify-center gap-3 -translate-y-2">
+                <div className="w-14 h-14 rounded-full bg-white/10" />
+                <div className="h-5 w-28 bg-white/10 rounded" />
+                <div className="h-3 w-20 bg-white/5 rounded" />
               </div>
-              <h3 className="text-lg font-bold text-white truncate px-2">
-                {topThree[1].username}
-              </h3>
-              <div className="text-xs text-slate-400 mt-0.5">
-                {getRatingInfo(topThree[1].rating).title}
-              </div>
-              <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-around">
-                <div>
-                  <div className="text-[10px] text-slate-500 uppercase">Rating</div>
-                  <div className="text-base font-bold font-mono text-slate-200">
-                    {topThree[1].rating}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 uppercase">Solved</div>
-                  <div className="text-base font-bold font-mono text-emerald-400">
-                    {topThree[1].problemsSolved || 0}
-                  </div>
-                </div>
+              <div className="glass rounded-2xl p-6 border border-white/5 h-64 animate-pulse flex flex-col items-center justify-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-white/10" />
+                <div className="h-4 w-24 bg-white/10 rounded" />
+                <div className="h-3 w-16 bg-white/5 rounded" />
               </div>
             </div>
+          ) : topThree.length >= 3 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 items-end">
+              {/* Rank 2 (Silver) */}
+              <div className="glass rounded-2xl p-6 border border-slate-400/20 relative overflow-hidden order-2 md:order-1 text-center bg-gradient-to-b from-slate-400/5 to-transparent">
+                <div className="w-12 h-12 mx-auto rounded-full bg-slate-300/10 border border-slate-300/30 flex items-center justify-center text-xl mb-3 shadow-lg">
+                  🥈
+                </div>
+                <div className="text-xs font-mono font-bold text-slate-300 mb-1">
+                  RANK #2
+                </div>
+                <h3 className="text-lg font-bold text-white truncate px-2">
+                  {topThree[1].username}
+                </h3>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  {getRatingInfo(topThree[1].rating).title}
+                </div>
+                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-around">
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase">Rating</div>
+                    <div className="text-base font-bold font-mono text-slate-200">
+                      {topThree[1].rating}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase">Solved</div>
+                    <div className="text-base font-bold font-mono text-emerald-400">
+                      {topThree[1].problemsSolved || 0}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-            {/* Rank 1 (Gold - Elevated) */}
-            <div className="glass rounded-2xl p-7 border-2 border-amber-500/40 relative overflow-hidden order-1 md:order-2 text-center bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-transparent shadow-2xl shadow-amber-500/10 -translate-y-2">
-              <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/20 border-2 border-amber-400/50 flex items-center justify-center text-2xl mb-3 shadow-lg shadow-amber-500/20">
-                👑
-              </div>
-              <div className="text-xs font-mono font-extrabold text-amber-400 mb-1 flex items-center justify-center gap-1">
-                <span>CHAMPION</span> &bull; <span>RANK #1</span>
-              </div>
-              <h3 className="text-xl font-extrabold text-white truncate px-2">
-                {topThree[0].username}
-              </h3>
-              <div className="inline-block text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold mt-1">
-                {getRatingInfo(topThree[0].rating).title}
-              </div>
-              <div className="mt-5 pt-4 border-t border-amber-500/20 flex items-center justify-around">
-                <div>
-                  <div className="text-[10px] text-amber-300/70 uppercase">ELO Rating</div>
-                  <div className="text-lg font-black font-mono text-amber-300">
-                    {topThree[0].rating}
+              {/* Rank 1 (Gold - Elevated) */}
+              <div className="glass rounded-2xl p-7 border-2 border-amber-500/40 relative overflow-hidden order-1 md:order-2 text-center bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-transparent shadow-2xl shadow-amber-500/10 -translate-y-2">
+                <div className="w-14 h-14 mx-auto rounded-full bg-amber-500/20 border-2 border-amber-400/50 flex items-center justify-center text-2xl mb-3 shadow-lg shadow-amber-500/20">
+                  👑
+                </div>
+                <div className="text-xs font-mono font-extrabold text-amber-400 mb-1 flex items-center justify-center gap-1">
+                  <span>CHAMPION</span> &bull; <span>RANK #1</span>
+                </div>
+                <h3 className="text-xl font-extrabold text-white truncate px-2">
+                  {topThree[0].username}
+                </h3>
+                <div className="inline-block text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold mt-1">
+                  {getRatingInfo(topThree[0].rating).title}
+                </div>
+                <div className="mt-5 pt-4 border-t border-amber-500/20 flex items-center justify-around">
+                  <div>
+                    <div className="text-[10px] text-amber-300/70 uppercase">ELO Rating</div>
+                    <div className="text-lg font-black font-mono text-amber-300">
+                      {topThree[0].rating}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-amber-300/70 uppercase">Problems Solved</div>
+                    <div className="text-lg font-black font-mono text-emerald-400">
+                      {topThree[0].problemsSolved || 0}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-[10px] text-amber-300/70 uppercase">Problems Solved</div>
-                  <div className="text-lg font-black font-mono text-emerald-400">
-                    {topThree[0].problemsSolved || 0}
-                  </div>
-                </div>
               </div>
-            </div>
 
-            {/* Rank 3 (Bronze) */}
-            <div className="glass rounded-2xl p-6 border border-amber-700/30 relative overflow-hidden order-3 text-center bg-gradient-to-b from-amber-700/10 to-transparent">
-              <div className="w-12 h-12 mx-auto rounded-full bg-amber-700/20 border border-amber-700/40 flex items-center justify-center text-xl mb-3 shadow-lg">
-                🥉
-              </div>
-              <div className="text-xs font-mono font-bold text-amber-600 mb-1">
-                RANK #3
-              </div>
-              <h3 className="text-lg font-bold text-white truncate px-2">
-                {topThree[2].username}
-              </h3>
-              <div className="text-xs text-slate-400 mt-0.5">
-                {getRatingInfo(topThree[2].rating).title}
-              </div>
-              <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-around">
-                <div>
-                  <div className="text-[10px] text-slate-500 uppercase">Rating</div>
-                  <div className="text-base font-bold font-mono text-slate-200">
-                    {topThree[2].rating}
-                  </div>
+              {/* Rank 3 (Bronze) */}
+              <div className="glass rounded-2xl p-6 border border-amber-700/30 relative overflow-hidden order-3 text-center bg-gradient-to-b from-amber-700/10 to-transparent">
+                <div className="w-12 h-12 mx-auto rounded-full bg-amber-700/20 border border-amber-700/40 flex items-center justify-center text-xl mb-3 shadow-lg">
+                  🥉
                 </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 uppercase">Solved</div>
-                  <div className="text-base font-bold font-mono text-emerald-400">
-                    {topThree[2].problemsSolved || 0}
+                <div className="text-xs font-mono font-bold text-amber-600 mb-1">
+                  RANK #3
+                </div>
+                <h3 className="text-lg font-bold text-white truncate px-2">
+                  {topThree[2].username}
+                </h3>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  {getRatingInfo(topThree[2].rating).title}
+                </div>
+                <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-around">
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase">Rating</div>
+                    <div className="text-base font-bold font-mono text-slate-200">
+                      {topThree[2].rating}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-500 uppercase">Solved</div>
+                    <div className="text-base font-bold font-mono text-emerald-400">
+                      {topThree[2].problemsSolved || 0}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : null
         )}
 
         {/* Current User Standing Bar */}
@@ -282,14 +311,28 @@ export default function LeaderboardPage() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                      <div className="flex flex-col items-center justify-center gap-3">
-                        <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                        <span>Calculating real-time ELO standings...</span>
-                      </div>
-                    </td>
-                  </tr>
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <tr key={`lb-skel-${i}`} className="animate-pulse">
+                      <td className="px-6 py-4">
+                        <div className="h-4 w-8 bg-white/10 rounded" />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-white/10 shrink-0" />
+                          <div className="space-y-1.5">
+                            <div className="h-4 w-28 bg-white/10 rounded" />
+                            <div className="h-3 w-16 bg-white/5 rounded" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="h-4 w-12 bg-white/10 rounded ml-auto" />
+                      </td>
+                      <td className="px-6 py-4 text-right hidden sm:table-cell">
+                        <div className="h-4 w-8 bg-white/10 rounded ml-auto" />
+                      </td>
+                    </tr>
+                  ))
                 ) : filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-6 py-12 text-center text-slate-500">

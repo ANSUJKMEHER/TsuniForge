@@ -11,9 +11,11 @@ function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const router = useRouter();
 
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, isHydrated, logout } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
@@ -50,7 +52,11 @@ function Navbar() {
           <NavLink href="/company">For Companies</NavLink>
         </div>
 
-        {isAuthenticated && user ? (
+        {!mounted || !isHydrated ? (
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-28 rounded-lg bg-white/[0.04] border border-white/5 animate-pulse" />
+          </div>
+        ) : isAuthenticated && user ? (
           <div className="flex items-center gap-3">
             {user.role === "admin" && (
               <Link

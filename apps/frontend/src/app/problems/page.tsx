@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -9,7 +9,12 @@ import { Plus } from "lucide-react";
 
 // ─── Navbar ───────────────────────────────────
 function Navbar() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout, isHydrated } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <nav className="border-b border-white/5 bg-surface-950/80 backdrop-blur-md sticky top-0 z-50">
@@ -29,7 +34,9 @@ function Navbar() {
           <Link href="/leaderboard" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Leaderboard</Link>
         </div>
         
-        {isAuthenticated && user ? (
+        {!mounted || !isHydrated ? (
+          <div className="w-28 h-9 rounded-lg bg-white/5 animate-pulse" />
+        ) : isAuthenticated && user ? (
           <div className="flex items-center gap-3">
             {user.role === "admin" && (
               <Link
@@ -149,15 +156,26 @@ export default function ProblemsPage() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {isLoading ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-10 text-center text-slate-500">
-                    <svg className="animate-spin w-6 h-6 mx-auto mb-2" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-                      <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
-                    </svg>
-                    Loading problems...
-                  </td>
-                </tr>
+                [...Array(6)].map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4">
+                      <div className="w-5 h-5 rounded-md bg-white/5" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-44 bg-white/10 rounded mb-2" />
+                      <div className="flex gap-2">
+                        <div className="h-3 w-12 bg-white/5 rounded-full" />
+                        <div className="h-3 w-16 bg-white/5 rounded-full" />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-6 w-16 bg-white/5 rounded-full" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-10 bg-white/5 rounded" />
+                    </td>
+                  </tr>
+                ))
               ) : data?.data?.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-10 text-center text-slate-500">

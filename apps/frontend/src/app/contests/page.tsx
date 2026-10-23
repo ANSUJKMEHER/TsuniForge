@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -41,7 +41,12 @@ const SAMPLE_ROUNDS = [
 
 // ─── Shared Navbar ────────────────────────────
 function Navbar() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, isHydrated, logout } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <nav className="border-b border-white/5 bg-surface-950/80 backdrop-blur-md sticky top-0 z-50">
@@ -78,7 +83,11 @@ function Navbar() {
           </Link>
         </div>
 
-        {isAuthenticated && user ? (
+        {!mounted || !isHydrated ? (
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-28 rounded-lg bg-white/[0.04] border border-white/5 animate-pulse" />
+          </div>
+        ) : isAuthenticated && user ? (
           <div className="flex items-center gap-3">
             {user.role === "admin" && (
               <Link
