@@ -21,6 +21,12 @@ TsuniForge is an enterprise-grade, distributed competitive programming and techn
 
 [Key Features](#key-features) • [Architecture](#architecture) • [How It Works](#how-it-works) • [Technology Stack](#technology-stack) • [Getting Started](#getting-started) • [API Documentation](#api-documentation) • [Testing](#testing--verification)
 
+<br/><br/>
+
+<p align="center">
+  <img src="docs/screenshots/01-landing-hero.png" alt="TsuniForge Platform Interface" width="95%" style="border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);" />
+</p>
+
 </div>
 
 ---
@@ -66,18 +72,62 @@ TsuniForge addresses these requirements with an event-driven monorepo architectu
 
 ## Visual Presentation
 
-Below is an overview of the primary application surfaces available in TsuniForge:
+Below is a visual walkthrough of the key application surfaces in TsuniForge:
 
-| Interface                       | Route                                      | Primary Capabilities                                                                                                                       |
-| ------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Problem Workspace**           | `/problems/[slug]`                         | Split-pane layout with markdown problem spec, Monaco IDE, language selector, stdin custom test case runner, and live execution console.    |
-| **ICPC Contest Arena**          | `/contests` & `/contests/[id]/leaderboard` | Live tournament lobby with active/upcoming filters, real-time leaderboard table, penalty calculations, and problem submission statuses.    |
-| **Admin Problem Studio**        | `/admin/problems/new`                      | Full problem authoring suite with auto-slug generation, tag selector, time/memory limits, markdown preview, and dynamic test case manager. |
-| **Enterprise Recruiter Portal** | `/company/dashboard`                       | Candidate assessment stream, candidate invitation workflow, score metrics, and live anti-cheat proctoring event logs.                      |
-| **Multi-Language Playground**   | `/playground`                              | Freeform code execution sandbox supporting C++, Java, and Python with custom input streams and execution timers.                           |
-| **Global Leaderboard**          | `/leaderboard`                             | Top-3 podium showcase, global rating tiers, user ranking statistics, and direct profile navigation.                                        |
+### 1. Hero Landing Page (`/`)
 
-> **Note for Contributors & Reviewers**: To capture updated UI screenshots for offline documentation, start the development servers locally (see [Getting Started](#getting-started)), navigate to the routes listed above, and place PNG exports in `docs/screenshots/`.
+> Full-stack competitive programming portal featuring dark OLED styling, real-time metrics, interactive code preview, and quick access into problems and playground.
+
+<p align="center">
+  <img src="docs/screenshots/01-landing-hero.png" alt="TsuniForge Hero Landing Page" width="95%" />
+</p>
+
+### 2. Algorithmic Problem Catalog (`/problems`)
+
+> Curated algorithmic challenge inventory with difficulty badges (`Easy`, `Medium`, `Hard`), topic tags, acceptance rates, and search filters.
+
+<p align="center">
+  <img src="docs/screenshots/02-problem-catalog.png" alt="TsuniForge Problem Catalog" width="95%" />
+</p>
+
+### 3. Split-Pane Problem Workspace & Monaco IDE (`/problems/[slug]`)
+
+> Complete browser IDE with syntax highlighting, language selector (C++, Java, Python), test case viewer, live console, and custom `stdin` execution.
+
+<p align="center">
+  <img src="docs/screenshots/03-problem-workspace.png" alt="TsuniForge Problem Workspace and Monaco IDE" width="95%" />
+</p>
+
+### 4. Competitive Programming Arena (`/contests`)
+
+> Live ICPC tournament lobby with active, upcoming, and past round filtering, countdown timers, and registration workflows.
+
+<p align="center">
+  <img src="docs/screenshots/04-contest-arena.png" alt="TsuniForge Contest Arena" width="95%" />
+</p>
+
+### 5. Championship Leaderboard (`/leaderboard`)
+
+> Real-time tournament and global rankings featuring a podium showcase (Gold, Silver, Bronze) and ELO rating tier progression.
+
+<p align="center">
+  <img src="docs/screenshots/05-championship-leaderboard.png" alt="TsuniForge Championship Leaderboard" width="95%" />
+</p>
+
+### Full Interface Matrix
+
+| Interface                       | Route                 | Primary Capabilities                                     | Status |
+| ------------------------------- | --------------------- | -------------------------------------------------------- | :----: |
+| **Hero Landing Page**           | `/`                   | Platform highlights, live stats, interactive quick links |  Live  |
+| **Problem Catalog**             | `/problems`           | Paginated catalog, difficulty pills, search bar          |  Live  |
+| **Problem Workspace**           | `/problems/[slug]`    | Split-pane spec, Monaco IDE, custom stdin console        |  Live  |
+| **ICPC Contest Arena**          | `/contests`           | Active/upcoming rounds, tournament countdowns            |  Live  |
+| **Championship Leaderboard**    | `/leaderboard`        | Top-3 podium, ELO rating tiers, competitor handles       |  Live  |
+| **Admin Problem Studio**        | `/admin/problems/new` | Markdown problem authoring & dynamic test case editor    |  Live  |
+| **Enterprise Recruiter Portal** | `/company/dashboard`  | Candidate assessment stream & anti-cheat event feed      |  Live  |
+| **Multi-Language Playground**   | `/playground`         | Freeform C++/Java/Python scratchpad with execution timer |  Live  |
+
+> _Screenshots for Admin Studio, Recruiter Portal, and Playground will be added in the next update._
 
 ---
 
