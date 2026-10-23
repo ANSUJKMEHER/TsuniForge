@@ -114,6 +114,22 @@ Below is a visual walkthrough of the key application surfaces in TsuniForge:
   <img src="docs/screenshots/05-championship-leaderboard.png" alt="TsuniForge Championship Leaderboard" width="95%" />
 </p>
 
+### 6. Admin Problem Authoring Studio (`/admin/problems/new`)
+
+> Interactive problem authoring environment featuring live markdown preview, difficulty selection, time & memory limits, and dynamic test case configuration.
+
+<p align="center">
+  <img src="docs/screenshots/06-admin-authoring-studio.png" alt="TsuniForge Admin Authoring Studio" width="95%" />
+</p>
+
+### 7. Enterprise Assessment & Anti-Cheat Telemetry Dashboard (`/company/dashboard`)
+
+> Enterprise talent assessment portal monitoring candidate pipelines, benchmark pass rates, auto-graded scorecards, and live anti-cheat telemetry (tab-switch and window-blur tracking).
+
+<p align="center">
+  <img src="docs/screenshots/07-enterprise-assessment-dashboard.png" alt="TsuniForge Enterprise Assessment Dashboard" width="95%" />
+</p>
+
 ### Full Interface Matrix
 
 | Interface                       | Route                 | Primary Capabilities                                     | Status |
@@ -126,8 +142,6 @@ Below is a visual walkthrough of the key application surfaces in TsuniForge:
 | **Admin Problem Studio**        | `/admin/problems/new` | Markdown problem authoring & dynamic test case editor    |  Live  |
 | **Enterprise Recruiter Portal** | `/company/dashboard`  | Candidate assessment stream & anti-cheat event feed      |  Live  |
 | **Multi-Language Playground**   | `/playground`         | Freeform C++/Java/Python scratchpad with execution timer |  Live  |
-
-> _Screenshots for Admin Studio, Recruiter Portal, and Playground will be added in the next update._
 
 ---
 

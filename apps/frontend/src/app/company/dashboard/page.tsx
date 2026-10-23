@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuthStore } from "@/stores/auth.store";
 import {
@@ -19,11 +19,16 @@ import {
 
 export default function CompanyDashboard() {
   const { user, logout } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newRole, setNewRole] = useState("Senior Full-Stack Engineer");
   const [newDuration, setNewDuration] = useState(60);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Mock candidates stream demonstrating proctoring telemetry intelligence
   const [candidates] = useState([
@@ -146,8 +151,8 @@ export default function CompanyDashboard() {
                 🏢
               </div>
               <div className="hidden md:flex flex-col text-left">
-                <span className="text-xs font-medium text-slate-200">
-                  {user?.username || "Recruiter"}
+                <span className="text-xs font-medium text-slate-200" suppressHydrationWarning>
+                  {mounted ? (user?.username || "Recruiter") : "Recruiter"}
                 </span>
                 <span className="text-[10px] text-indigo-400 font-mono">
                   Enterprise Team
